@@ -41,7 +41,7 @@ withinModel = [ ["CO", "att_ch", "yrs_tch"] ],
 withinCovExo = True,  
 betweenModel = [ ["CO", "att_ch", "yrs_tch", "schoolsize", "Tx"] ]  
 betweenCovExo = True,  
-cluster = "classid" )**
+cluster = "school" )**
 * This would test a model where Classroom Organinzation (CO) is predicted by within-school (i.e., classroom) and between-school predictors (defined by the cluster variable school).
 * Within-school predictors are teacher attitudes toward childen (att_ch) and teacher experience (yrs_tch). 
 * The exogenous variables (att_ch, and yrs_tch) are allowed to freely covary in the within model.
@@ -77,7 +77,7 @@ categorical = ["att_ch", "yrs_tch"],
 censored = None,  
 count = None,  
 nominal = ["Tx"],  
-cluster = "classid",  
+cluster = "school",  
 weight = "demoweight",  
 datasetName = "CLASS",  
 datasetLabels = ["2009 cohort"]  
