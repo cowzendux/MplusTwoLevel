@@ -82,7 +82,7 @@ weight = "demoweight",
 datasetName = "CLASS",  
 datasetLabels = ["2009 cohort"]  
 waittime = 10)**
-* * This would test a model where three measures assessing classroom interactions (CO, ES, and IS) are predicted by within-school (i.e., classroom) and between-school predictors (defined by the cluster variable school).
+* This would test a model where three measures assessing classroom interactions (CO, ES, and IS) are predicted by within-school (i.e., classroom) and between-school predictors (defined by the cluster variable school).
 * A single latent variable (CHSES) is created to represent child socio-economic status, based on observed variables assessing income (chincome_mean), free/reduced lunch status (chfrl_mean), and mother education (chmomed_mean). This is implemented at both the within level and the between level. 
 * Other within-school predictors are teacher attitudes toward childen (att_ch) and teacher experience (yrs_tch). 
 * The exogenous variables (CHSES, att_ch, and yrs_tch) are allowed to freely covary in the within model. 
