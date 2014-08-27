@@ -1,4 +1,73 @@
-MplusTwolevel
-=============
+#MplusTwolevel
 
 SPSS Python Extension function that will use Mplus to run a two-level model from within SPSS
+
+This function allows users to identify a path model that they want to test on an SPSS data set. The program then converts the active data set to Mplus format, writes a program that will perform the path analysis in Mplus, then loads the important parts of the Mplus output into the SPSS output window.
+
+This and other SPSS Python Extension functions can be found at http://www.stat-help.com/python.html
+
+##Usage
+**MplusTwolevel(impfile, withinLatent, withinModel, withinVar, withinCovar, withinCovEndo, withinCovExo, withinIdentifiers, betweenLatent, betweenModel, betweenVar, betweenCovar, betweenCovEndo, betweenCovExo, betweenIdentifiers, useobservations, wald, categorical, censored, count, nominal, cluster, weight, datasetName, datasetLabels, waittime)**
+* "impfile" is a string identifying the directory and filename of Mplus input file to be created by the program. This filename must end with .inp . The data file will automatically be saved to the same directory. This argument is required.
+* "withinLatent" is a list of lists identifying the relations between observed and latent variables for the within model. This argument is optional, and can be omitted if your model does not have any latent variables at the within level. When creating this argument, you first create a list of strings for each latent variable where the first element is the name of the latent variable and the remaining elements are the names of the observed variables that load on that latent variable. You then combine these individual latent variable lists into a larger list identifying the full measurement model.
+* "withinModel" is a list of lists identifying the equations in the within-cluster part of your model.  First, you create a set of lists that each have the outcome as the first element and then have the predictors as the following elements. Then you combine these individual equation lists into a larger list identifying  the entire within model. All variables included in the within model have to have variability within clusters.
+* "withinVar" is a list of strings identifying variables that are to be treated as only having within-cluster variability. Note that you can include variables in the within model even if you do not include them in this command, in which case Mplus will assume that the variable has both within-cluster and within-cluster variability. This argument defaults to None, indicating that you are not identifying any variables as only having within-cluster variability.
+* "withinCovar" is a list of lists identifying within-cluster covariances among variables. First, you create a set of lists that identify pairs of variables that  are allowed to covary. Then you combine these lists of pairs into a single, overall list. This argument defaults to None, which would indicate that there are not explicitly identifying within-cluster covariances among the variables. However, your choices for the "withinCovEndo" and the "withinCovExo" arguments may allow additional covariances.
+*  "withinCovEndo" is a boolean variable that indicates whether you want to automatically covary all of the endogenous variables in the within-cluster part of the model. Endogenous variables are those that are used as an outcome at least once in your model. If this variable is set to True, then the program will automatically include covariances among all of the endogenous variables. If this variable is set to False, then it will not, although you can still specify individual covariances between endogenous variables using the "withinCovar" argument described above. By default, the value of covEndo is False.
+* "withinCovExo" is a boolean variable that indicates whether you want to automatically covary all of the exogenous variables in the within-cluster part of the model. Exogenous variables are those that are only used as predictors and never used as outcomes in your model. If this variable is set to True, then the program will automatically include covariances among all of the exogenous variables. If this variable is set to False, then it will not, although you can still specify individual covariances between exogenous variables using the "withinCovar" argument described above. By default, the value for corrExo is True.
+* "withinIdentifiers" is an optional argument provides a list of lists pairing within-cluster coefficients with identifiers that will be used as part of a Wald Z test. The coefficients part must specifically match a list within the withinModel statement. To do this, you may need to separate the predictors for a single outcome into different lists. This defaults to None, which does not assign any identifiers. 
+* "betweenLatent" is a list of lists identifying the relations between observed and latent variables for the between model. This argument is optional, and can be omitted if your model does not have any latent variables at the between level. When creating this argument, you first create a list of strings for each latent variable where the first element is the name of the latent variable and the remaining elements are the names of the observed variables that load on that latent variable. You then combine these individual latent variable lists into a larger list identifying the full measurement model.
+* "betweenModel" is a list of lists identifying the equations in the between-cluster part of your model.  First, you create a set of lists that each have the outcome as the first element and then have the predictors as the following elements. Then you combine these individual equation lists into a larger list identifying the entire between model. You can include variables that vary within a cluster as elements of the between model. In this case, the between-cluster test will specifically identify how between-cluster variability in the predictor relates to between-cluster variability in the outcome.
+* "betweenVar" is a list of strings identifying variables that are to be treated as only having between-cluster variability. Note that you can include variables in the between model even if you do not include them in this command, in which case Mplus will assume that the variable has both within-cluster and within-cluster variability. This argument defaults to None, indicating that you are not identifying any variables as only having between-cluster variability.
+* "betweenCovar" is a list of lists identifying between-cluster covariances among variables. First, you create a set of lists that identify pairs of variables that are allowed to covary. Then you combine these lists of pairs into a single, overall list. This argument defaults to None, which would indicate that there are not explicitly identifying between-cluster covariances among the variables. However, your choices for the "betweenCovEndo" and the "betweenCovExo" arguments may allow additional covariances.
+* "betweenCovEndo" is a boolean variable that indicates whether you want to automatically covary all of the endogenous variables in the between-cluster part of the model. Endogenous variables are those that are used as an outcome at least once in your model. If this variable is set to True, then the program will automatically include covariances among all of the endogenous variables. If this variable is set to False, then it will not, although you can still specify individual covariances between endogenous variables using the "betweenCovar" argument described above. By default, the value of covEndo is False.
+* "betweenCovExo" is a boolean variable that indicates whether you want to automatically covary all of the exogenous variables in the between-cluster part of the model. Exogenous variables are those that are only used as predictors and never used as outcomes in your model. If this variable is set to True, then the program will automatically include covariances among all of the exogenous variables. If this variable is set to False, then it will not, although you can still specify individual covariances between exogenous variables using the "betweenCovar" argument described above. By default, the value for corrExo is True.
+* "betweenIdentifiers" is an optional argument provides a list of lists pairing between-cluster coefficients with identifiers that will be used as part of a Wald Z test. The coefficients part must specifically match one listed in the betweenModel statement. To do this, you may need to separate the predictors for a single outcome into different lists. This defaults to None, which does not assign any identifiers. 
+* "wald" is an optional argument that identifies a list of constraints that will be tested using a Wald Z test. The constraints will be definted using the identifiers specified in the "identifiers" argument. This can be used to create an omnibus test that several coefficients are equal to zero, or it can be used to test the equivalence of different coefficients. This argument defaults to None, which would indicate that you do not want to perform a Wald Z test.
+* "useobservations" is a string specifying a selection criteriion that must be met for observations to be included in the analysis. This is an optional argument that defaults to None, indicating that all observations are to be included in the analysis.
+* "categorical" is an optional argument that identifies a list of variables that should be treated as categorical by Mplus. Note that what Mplus calls categorical is typically called "ordinal" in other places. Use the "nominal" command described below for true categorical variables.
+* "censored" is an optional argument that identifies a list of variables that should be treated as censored by Mplus.
+* "count" is an optional argument that identifies a list of variables that should be treated as count variables (i.e., for Poisson regression) by Mplus.
+* "nominal" is an optional argument that identifies a list of variables that should be treated as nominal variables by Mplus.
+* "cluster" is an optional argument that identifies a cluster variable. This defaults to None, which would indicate that there is no clustering.
+* "weight" is an optional argument that identifies a sample weight. This defaults to None, which would indicate that there all observations are given equal weight.
+* "datasetName" is an optional argument that identifies the name of an SPSS dataset that should be used to record the coefficients.
+* "datasetLabels" is an optional argument that identifies a list of labels that would be applied to the datasets.  This can be useful if you are appending the results from multiple analyses to the same dataset.
+* "waittime" is an optional argument that specifies how many seconds the program should wait after running the Mplus program before it tries to read the output file. This defaults to 5. You should be sure that you leave enough time for Mplus to finish the analyses before trying to import them into SPSS.
+
+##Example 1 - Simple specification
+
+##Example 2 - Full specification
+**MplusTwolevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",  
+withinLatent = [ ["CHSES", "chincome_mean", "chfrl_mean", "chmomed_mean"] ],  
+withinModel = [ ["CO", "CHSES", "att_ch", "yrs_tch"],  
+["ES", "CHSES", "att_ch", "yrs_tch"],  
+["IS", "CHSES", "att_ch", "yrs_tch"] ],  
+withinCovar = [ ["CO","ES"], ["CO", "IS"] ],  
+withinCovEndo = False,  
+withinCovExo = True,  
+withinIdentifiers = None,  
+betweenLatent = [ ["CHSES", "chincome_mean", "chfrl_mean", "chmomed_mean"] ],  
+betweenModel = [ ["CO", "CHSES", "att_ch", "yrs_tch", "schoolsize"],  
+["CO", "Tx"],  
+["ES", "CHSES", "att_ch", "yrs_tch", "schoolsize"],  
+["ES", "Tx"],  
+["IS", "CHSES", "att_ch", "yrs_tch", "schoolsize"]  
+["IS", "Tx"] ],  
+betweenCovar = [ ["CO","ES"], ["CO", "IS"] ],  
+betweenCovEndo = False,  
+betweenCovExo = True,  
+betweenIdentifiers = [ [ ["CO", "Educ"], "b1"],  
+[ ["ES", "Educ"], "b2"],  
+[ ["IS", "Educ"], "b3"] ],  
+wald = [ "b1 = 0", "b2 = 0", "b3 = 0" ],  
+useobservations = "p2cond==1",  
+categorical = ["att_ch", "yrs_tch"],  
+censored = None,  
+count = None,  
+nominal = ["Tx"],  
+cluster = "classid",  
+weight = "demoweight",  
+datasetName = "CLASS",  
+datasetLabels = ["2009 cohort"]  
+waittime = 10)**
