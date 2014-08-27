@@ -39,7 +39,7 @@ This and other SPSS Python Extension functions can be found at http://www.stat-h
 **MplusTwolevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",  
 withinModel = [ ["CO", "att_ch", "yrs_tch"] ],  
 withinCovExo = True,  
-betweenModel = [ ["CO", "att_ch", "yrs_tch", "schoolsize", "Tx"] ]
+betweenModel = [ ["CO", "att_ch", "yrs_tch", "schoolsize", "Tx"] ]  
 betweenCovExo = True,  
 cluster = "classid" )**
 * This would test a model where Classroom Organinzation (CO) is predicted by within-school (i.e., classroom) and between-school predictors (defined by the cluster variable school).
