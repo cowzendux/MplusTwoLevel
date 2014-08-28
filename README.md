@@ -39,9 +39,9 @@ This and other SPSS Python Extension functions can be found at http://www.stat-h
 **MplusTwolevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",  
 withinModel = [ ["CO", "att_ch", "yrs_tch"] ],  
 withinCovExo = True,  
-betweenModel = [ ["CO", "att_ch", "yrs_tch", "schoolsize", "Tx"] ]
+betweenModel = [ ["CO", "att_ch", "yrs_tch", "schoolsize", "Tx"] ]  
 betweenCovExo = True,  
-cluster = "classid" )**
+cluster = "school" )**
 * This would test a model where Classroom Organinzation (CO) is predicted by within-school (i.e., classroom) and between-school predictors (defined by the cluster variable school).
 * Within-school predictors are teacher attitudes toward childen (att_ch) and teacher experience (yrs_tch). 
 * The exogenous variables (att_ch, and yrs_tch) are allowed to freely covary in the within model.
@@ -77,12 +77,12 @@ categorical = ["att_ch", "yrs_tch"],
 censored = None,  
 count = None,  
 nominal = ["Tx"],  
-cluster = "classid",  
+cluster = "school",  
 weight = "demoweight",  
 datasetName = "CLASS",  
 datasetLabels = ["2009 cohort"]  
 waittime = 10)**
-* * This would test a model where three measures assessing classroom interactions (CO, ES, and IS) are predicted by within-school (i.e., classroom) and between-school predictors (defined by the cluster variable school).
+* This would test a model where three measures assessing classroom interactions (CO, ES, and IS) are predicted by within-school (i.e., classroom) and between-school predictors (defined by the cluster variable school).
 * A single latent variable (CHSES) is created to represent child socio-economic status, based on observed variables assessing income (chincome_mean), free/reduced lunch status (chfrl_mean), and mother education (chmomed_mean). This is implemented at both the within level and the between level. 
 * Other within-school predictors are teacher attitudes toward childen (att_ch) and teacher experience (yrs_tch). 
 * The exogenous variables (CHSES, att_ch, and yrs_tch) are allowed to freely covary in the within model. 
