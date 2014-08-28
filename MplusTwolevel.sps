@@ -242,6 +242,7 @@ waittime = 10)
 * 2014-08-25 Read output file
 * 2014-08-26 Fixed latent names
     Added level variable to dataset
+* 2014-08-28 Removed problematic reference to auxiliary variables
 
 set printback = off.
 begin program python.
@@ -1601,14 +1602,13 @@ datasetName = None, datasetLabels = [], waittime = 5):
 # Convert variable list arguments to Mplus
         lvarList = [categorical, censored, count, nominal, 
 withinVar, betweenVar]
-        MplusAuxiliary = []
         MplusCategorical = []
         MplusCensored = []
         MplusCount = []
         MplusNominal = []
         MplusWithinVar = []
         MplusBetweenVar = []
-        lvarMplusList = [MplusAuxiliary, MplusCategorical, MplusCensored,
+        lvarMplusList = [MplusCategorical, MplusCensored,
 MplusCount, MplusNominal, MplusWithinVar, MplusBetweenVar]
         for t in range(len(lvarList)):
             if (lvarList[t] == None):
@@ -1678,4 +1678,4 @@ MplusVariables, SPSSvariables)
 
 end program python.
 set printback = on.
-COMMENT BOOKMARK;LINE_NUM=1362;ID=1.
+COMMENT BOOKMARK;LINE_NUM=1363;ID=1.
