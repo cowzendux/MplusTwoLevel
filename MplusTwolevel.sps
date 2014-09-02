@@ -7,7 +7,7 @@
 * that will perform the path analysis in Mplus, then loads the important
 * parts of the Mplus output into the SPSS output window.
 
-**** Usage: MplusTwolevel(impfile, withinLatent, 
+**** Usage: MplusTwoLevel(impfile, withinLatent, 
 withinModel, withinVar, withinCovar, 
 withinCovEndo, withinCovExo, withinIdentifiers,
 betweenLatent, betweenModel, betweenVar, betweenCovar,
@@ -170,7 +170,7 @@ datasetName, datasetLabels, waittime)
 * to import them into SPSS
 
 * Example: 
-MplusTwolevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",
+MplusTwoLevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",
 withinLatent = [ ["CHSES", "chincome_mean", "chfrl_mean", "chmomed_mean"] ],
 withinModel = [ ["CO", "CHSES", "att_ch", "yrs_tch"],
 ["ES", "CHSES", "att_ch", "yrs_tch"],
@@ -243,6 +243,8 @@ waittime = 10)
 * 2014-08-26 Fixed latent names
     Added level variable to dataset
 * 2014-08-28 Removed problematic reference to auxiliary variables
+* 2014-09-02 Renamed function
+    Fixed error when no latent variables
 
 set printback = off.
 begin program python.
@@ -1361,7 +1363,7 @@ getCoefficients(self.Zbcoefficients)]
         spss.SetActive(datasetObj)
         spss.EndDataStep()
 
-def MplusPathAnalysis(inpfile, withinLatent = None, 
+def MplusTwoLevel(inpfile, withinLatent = None, 
 withinModel = None, withinVar = None, withinCovar = None, 
 withinCovEndo = False, withinCovExo = True, withinIdentifiers = None,
 betweenLatent = None, betweenModel = None, betweenVar = None, betweenCovar = None, 
@@ -1444,9 +1446,10 @@ datasetName = None, datasetLabels = [], waittime = 5):
             for var in equation:
                 if (var.upper() not in SPSSvariablesCaps):
                     variableError = 1
-                    for latentvar in withinLatent:
-                        if (var.upper() == latentvar[0].upper()):
-                            variableError = 0
+                    if (withinLatent != None):
+                        for latentvar in withinLatent:
+                            if (var.upper() == latentvar[0].upper()):
+                                variableError = 0
         if (variableError == 1):
             print("Error: Variable listed in within model not in current data set")
             error = 1
@@ -1456,9 +1459,10 @@ datasetName = None, datasetLabels = [], waittime = 5):
             for var in equation:
                 if (var.upper() not in SPSSvariablesCaps):
                     variableError = 1
-                    for latentvar in betweenLatent:
-                        if (var.upper() == latentvar[0].upper()):
-                            variableError = 0
+                    if (betweenLatent != None):
+                        for latentvar in betweenLatent:
+                            if (var.upper() == latentvar[0].upper()):
+                                variableError = 0
         if (variableError == 1):
             print("Error: Variable listed in between model not in current data set")
             error = 1
@@ -1678,4 +1682,4 @@ MplusVariables, SPSSvariables)
 
 end program python.
 set printback = on.
-COMMENT BOOKMARK;LINE_NUM=1363;ID=1.
+COMMENT BOOKMARK;LINE_NUM=1365;ID=1.
