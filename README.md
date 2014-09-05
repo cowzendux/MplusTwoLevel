@@ -102,7 +102,7 @@ waittime = 10)**
 * The regression coefficients will be recorded in the SPSS dataset "CLASS". This dataset will have a label variable, which will have the value of "2009 cohort" for all results from this analysis.
 * The program will wait 10 seconds after starting to run the Mplus program before it tries to read the results back into SPSS.
 
-##Example of only reading output
+##Example 3 - Only reading output
 **MplusTwoLevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",  
 runModel = False,  
 withinModel = [ ["CO", "att_ch", "yrs_tch"] ],  
