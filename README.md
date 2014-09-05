@@ -7,8 +7,10 @@ This function allows users to identify a path model that they want to test on an
 This and other SPSS Python Extension functions can be found at http://www.stat-help.com/python.html
 
 ##Usage
-**MplusTwoLevel(impfile, withinLatent, withinModel, withinVar, withinCovar, withinCovEndo, withinCovExo, withinIdentifiers, betweenLatent, betweenModel, betweenVar, betweenCovar, betweenCovEndo, betweenCovExo, betweenIdentifiers, useobservations, wald, categorical, censored, count, nominal, cluster, weight, datasetName, datasetLabels, waittime)**
+**MplusTwoLevel(impfile, runModel, viewOutput, withinLatent, withinModel, withinVar, withinCovar, withinCovEndo, withinCovExo, withinIdentifiers, betweenLatent, betweenModel, betweenVar, betweenCovar, betweenCovEndo, betweenCovExo, betweenIdentifiers, useobservations, wald, categorical, censored, count, nominal, cluster, weight, datasetName, datasetLabels, waittime)**
 * "impfile" is a string identifying the directory and filename of Mplus input file to be created by the program. This filename must end with .inp . The data file will automatically be saved to the same directory. This argument is required.
+* "runModel" is a boolean argument indicating whether or not you want the program to actually run the program it creates based on the model you define. You may choose to not run the model when you want to use the program to load an existing output file into SPSS. By default, the model is run.
+* "viewOutput" is a boolean argument indicating whether or not you want the program to read the created output into SPSS. You may choose not to read the output into SPSS when you know that it will take a very long time to run and you do not want to tie up SPSS while you are waiting for Mplus to finish. If you choose not to view the output, then the program will also not create a dataset for the coefficients. By default, the output is read into SPSS.
 * "withinLatent" is a list of lists identifying the relations between observed and latent variables for the within model. This argument is optional, and can be omitted if your model does not have any latent variables at the within level. When creating this argument, you first create a list of strings for each latent variable where the first element is the name of the latent variable and the remaining elements are the names of the observed variables that load on that latent variable. You then combine these individual latent variable lists into a larger list identifying the full measurement model.
 * "withinModel" is a list of lists identifying the equations in the within-cluster part of your model.  First, you create a set of lists that each have the outcome as the first element and then have the predictors as the following elements. Then you combine these individual equation lists into a larger list identifying  the entire within model. All variables included in the within model have to have variability within clusters.
 * "withinVar" is a list of strings identifying variables that are to be treated as only having within-cluster variability. Note that you can include variables in the within model even if you do not include them in this command, in which case Mplus will assume that the variable has both within-cluster and within-cluster variability. This argument defaults to None, indicating that you are not identifying any variables as only having within-cluster variability.
@@ -50,6 +52,8 @@ cluster = "school" )**
 
 ##Example 2 - Full specification
 **MplusTwoLevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",  
+runModel = True,  
+viewOutput = True,  
 withinLatent = [ ["CHSES", "chincome_mean", "chfrl_mean", "chmomed_mean"] ],  
 withinModel = [ ["CO", "CHSES", "att_ch", "yrs_tch"],  
 ["ES", "CHSES", "att_ch", "yrs_tch"],  
@@ -83,6 +87,7 @@ datasetName = "CLASS",
 datasetLabels = ["2009 cohort"]  
 waittime = 10)**
 * This would test a model where three measures assessing classroom interactions (CO, ES, and IS) are predicted by within-school (i.e., classroom) and between-school predictors (defined by the cluster variable school).
+* The program will both run the model and load the program into SPSS.
 * A single latent variable (CHSES) is created to represent child socio-economic status, based on observed variables assessing income (chincome_mean), free/reduced lunch status (chfrl_mean), and mother education (chmomed_mean). This is implemented at both the within level and the between level. 
 * Other within-school predictors are teacher attitudes toward childen (att_ch) and teacher experience (yrs_tch). 
 * The exogenous variables (CHSES, att_ch, and yrs_tch) are allowed to freely covary in the within model. 
@@ -96,3 +101,15 @@ waittime = 10)**
 * The analysis weights the observations using the values in the variable "demoweight." 
 * The regression coefficients will be recorded in the SPSS dataset "CLASS". This dataset will have a label variable, which will have the value of "2009 cohort" for all results from this analysis.
 * The program will wait 10 seconds after starting to run the Mplus program before it tries to read the results back into SPSS.
+
+##Example of only reading output
+**MplusTwoLevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",  
+runModel = False,
+withinModel = [ ["CO", "att_ch", "yrs_tch"] ],  
+withinCovExo = True,  
+betweenModel = [ ["CO", "att_ch", "yrs_tch", "schoolsize", "Tx"] ]  
+betweenCovExo = True,  
+cluster = "school" )**
+* This would test a model where Classroom Organinzation (CO) is predicted by within-school (i.e., classroom) and between-school predictors (defined by the cluster variable school).
+* This is the model listed in the simple specification, except that now choose to not run the model but only read its output into SPSS.
+* It is not necessary to actually report the model with the withinModel, betweenModel, etc. statements, but having them allows the program to automatically translate the variables reported in the Mplus output to their corresponding values in the SPSS dataset. It is therefore typically better to include the model than exclude it.
