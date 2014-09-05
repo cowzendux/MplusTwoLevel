@@ -104,7 +104,7 @@ waittime = 10)**
 
 ##Example of only reading output
 **MplusTwoLevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",  
-runModel = False,
+runModel = False,  
 withinModel = [ ["CO", "att_ch", "yrs_tch"] ],  
 withinCovExo = True,  
 betweenModel = [ ["CO", "att_ch", "yrs_tch", "schoolsize", "Tx"] ]  
