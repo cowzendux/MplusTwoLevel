@@ -7,10 +7,11 @@ This function allows users to identify a path model that they want to test on an
 This and other SPSS Python Extension functions can be found at http://www.stat-help.com/python.html
 
 ##Usage
-**MplusTwoLevel(inpfile, runModel, viewOutput, withinLatent, withinModel, withinVar, withinCovar, withinCovEndo, withinCovExo, withinIdentifiers, betweenLatent, betweenModel, betweenVar, betweenCovar, betweenCovEndo, betweenCovExo, betweenIdentifiers, useobservations, wald, categorical, censored, count, nominal, cluster, weight, datasetName, datasetLabels, waittime)**
+**MplusTwoLevel(inpfile, runModel, viewOutput, suppressSPSS, withinLatent, withinModel, withinVar, withinCovar, withinCovEndo, withinCovExo, withinIdentifiers, withinSlopes, betweenLatent, betweenModel, betweenVar, betweenCovar, betweenCovEndo, betweenCovExo, betweenIdentifiers, useobservations, wald, categorical, censored, count, nominal, cluster, weight, datasetName, datasetLabels, waittime)**
 * "inpfile" is a string identifying the directory and filename of Mplus input file to be created by the program. This filename must end with .inp . The data file will automatically be saved to the same directory. This argument is required.
 * "runModel" is a boolean argument indicating whether or not you want the program to actually run the program it creates based on the model you define. You may choose to not run the model when you want to use the program to load an existing output file into SPSS. However, when doing this, you should first load the corresponding data set so that the function can determine the appropriate translation between the Mplus variable names and SPSS variable names. By default, the model is run.
 * "viewOutput" is a boolean argument indicating whether or not you want the program to read the created output into SPSS. You may choose not to read the output into SPSS when you know that it will take a very long time to run and you do not want to tie up SPSS while you are waiting for Mplus to finish. If you choose not to view the output, then the program will also not create a dataset for the coefficients. By default, the output is read into SPSS.
+* "suppressSPSS" is a boolean argument indicating whether or not you want the program to supress SPSS output while running the model. Typically this output is not useful and merely clogs up the output window. If your program inconsistently causes SPSS to crash, suppressing the output can sometimes help. However, if your model is not running correctly, the SPSS output can help you see where the errors are. Setting this argument to True will not suppress the Mplus output. By default, the SPSS output is not suppressed.
 * "withinLatent" is a list of lists identifying the relations between observed and latent variables for the within model. This argument is optional, and can be omitted if your model does not have any latent variables at the within level. When creating this argument, you first create a list of strings for each latent variable where the first element is the name of the latent variable and the remaining elements are the names of the observed variables that load on that latent variable. You then combine these individual latent variable lists into a larger list identifying the full measurement model.
 * "withinModel" is a list of lists identifying the equations in the within-cluster part of your model.  First, you create a set of lists that each have the outcome as the first element and then have the predictors as the following elements. Then you combine these individual equation lists into a larger list identifying  the entire within model. All variables included in the within model have to have variability within clusters.
 * "withinVar" is a list of strings identifying variables that are to be treated as only having within-cluster variability. Note that you can include variables in the within model even if you do not include them in this command, in which case Mplus will assume that the variable has both within-cluster and within-cluster variability. This argument defaults to None, indicating that you are not identifying any variables as only having within-cluster variability.
@@ -18,6 +19,7 @@ This and other SPSS Python Extension functions can be found at http://www.stat-h
 *  "withinCovEndo" is a boolean variable that indicates whether you want to automatically covary all of the endogenous variables in the within-cluster part of the model. Endogenous variables are those that are used as an outcome at least once in your model. If this variable is set to True, then the program will automatically include covariances among all of the endogenous variables. If this variable is set to False, then it will not, although you can still specify individual covariances between endogenous variables using the "withinCovar" argument described above. By default, the value of withinCovEndo is False.
 * "withinCovExo" is a boolean variable that indicates whether you want to automatically covary all of the exogenous variables in the within-cluster part of the model. Exogenous variables are those that are only used as predictors and never used as outcomes in your model. If this variable is set to True, then the program will automatically include covariances among all of the exogenous variables. If this variable is set to False, then it will not, although you can still specify individual covariances between exogenous variables using the "withinCovar" argument described above. By default, the value for withinCovExo is True.
 * "withinIdentifiers" is an optional argument provides a list of lists pairing within-cluster coefficients with identifiers that will be used as part of a Wald Z test. The coefficients part must specifically match a list within the withinModel statement. To do this, you may need to separate the predictors for a single outcome into different lists. This defaults to None, which does not assign any identifiers. 
+* "withinSlopes" is an optional argument that provides a list of lists pairing within-cluster coefficients with identifiers that will be used to test cross-level interactions. The coefficients part must specifically match an element of the withinModel statement. To do this, you may need to separate the predictors for a single outcome into different lists. This defaults to None, which does not assign any identifiers. The identifiers created in this statement can be used in the betweenLatent, betweenModel, betweenCovar, and betweenIdentifiers statements.
 * "betweenLatent" is a list of lists identifying the relations between observed and latent variables for the between model. This argument is optional, and can be omitted if your model does not have any latent variables at the between level. When creating this argument, you first create a list of strings for each latent variable where the first element is the name of the latent variable and the remaining elements are the names of the observed variables that load on that latent variable. You then combine these individual latent variable lists into a larger list identifying the full measurement model.
 * "betweenModel" is a list of lists identifying the equations in the between-cluster part of your model.  First, you create a set of lists that each have the outcome as the first element and then have the predictors as the following elements. Then you combine these individual equation lists into a larger list identifying the entire between model. You can include variables that vary within a cluster as elements of the between model. In this case, the between-cluster test will specifically identify how between-cluster variability in the predictor relates to between-cluster variability in the outcome.
 * "betweenVar" is a list of strings identifying variables that are to be treated as only having between-cluster variability. Note that you can include variables in the between model even if you do not include them in this command, in which case Mplus will assume that the variable has both within-cluster and within-cluster variability. This argument defaults to None, indicating that you are not identifying any variables as only having between-cluster variability.
@@ -57,18 +59,27 @@ viewOutput = True,
 withinLatent = [ ["CHSES", "chincome_mean", "chfrl_mean", "chmomed_mean"] ],  
 withinModel = [ ["CO", "CHSES", "att_ch", "yrs_tch"],  
 ["ES", "CHSES", "att_ch", "yrs_tch"],  
-["IS", "CHSES", "att_ch", "yrs_tch"] ],  
+["IS", "CHSES", "att_ch", "yrs_tch"],
+["CO", "satis"],  
+["ES", "satis"],
+["IS", "satis"] ],
 withinCovar = [ ["CO","ES"], ["CO", "IS"] ],  
 withinCovEndo = False,  
 withinCovExo = True,  
 withinIdentifiers = None,  
+withinSlopes = [ [ ["CO", "satis"], "bCO"],
+[ ["ES", "satis"], "bES"],
+[ ["IS", "satis"], "bIS"] ],
 betweenLatent = [ ["CHSES", "chincome_mean", "chfrl_mean", "chmomed_mean"] ],  
-betweenModel = [ ["CO", "CHSES", "att_ch", "yrs_tch", "schoolsize"],  
+betweenModel = [ ["CO", "CHSES", "att_ch", "yrs_tch", "schoolsize", "satis"],  
 ["CO", "Tx"],  
 ["ES", "CHSES", "att_ch", "yrs_tch", "schoolsize"],  
 ["ES", "Tx"],  
 ["IS", "CHSES", "att_ch", "yrs_tch", "schoolsize"]  
-["IS", "Tx"] ],  
+["IS", "Tx"],
+["bCO", "Tx"],
+["bES", "Tx"],
+["bIS", "Tx] ],  
 betweenCovar = [ ["CO","ES"], ["CO", "IS"] ],  
 betweenCovEndo = False,  
 betweenCovExo = True,  
@@ -92,7 +103,9 @@ waittime = 10)**
 * Other within-school predictors are teacher attitudes toward childen (att_ch) and teacher experience (yrs_tch). 
 * The exogenous variables (CHSES, att_ch, and yrs_tch) are allowed to freely covary in the within model. 
 * The endogenous variables  (CO, ES, and IS) are not automatically allowed to covary in the within model, although two specific covariances are allowed (CO with ES and CO with IS). 
+* The relations of teacher satisfaction with the outcomes in the within model are identified as bCO, bES, and bIS.
 * Between-school predictors are the number of students in the school (schoolsize) and treatment condition (Tx). 
+* The random slopes bCO, bES, and bIS are used to test cross-level interactions between treatment and satisfaction on the outcomes (CO, ES, and IS).
 * The exogenous variables (Tx, CHSES, att_ch, yrs_tch, and schoolsize) are allowed to freely covary in the between model. 
 * The endogenous variables  (CO, ES, and IS) are not automatically allowed to covary in the between model, although two specific covariances are allowed (CO with ES and CO with IS). 
 * Identifiers are created representing the treatment effects on the three outcomes at the between level. A Wald test is created testing whether this collect of effects is significant.
