@@ -7,15 +7,15 @@
 * that will perform the path analysis in Mplus, then loads the important
 * parts of the Mplus output into the SPSS output window.
 
-**** Usage: MplusTwoLevel(impfile, runModel, viewOutput,
-withinLatent, withinModel, withinVar, withinCovar, 
-withinCovEndo, withinCovExo, withinIdentifiers,
+**** Usage: MplusTwoLevel(inpfile, runModel, viewOutput,
+suppressSPSS, withinLatent, withinModel, withinVar, withinCovar, 
+withinCovEndo, withinCovExo, withinIdentifiers, withinSlopes,
 betweenLatent, betweenModel, betweenVar, betweenCovar,
 betweenCovEndo, betweenCovExo, betweenIdentifiers,
 useobservations, wald,
 categorical, censored, count, nominal, cluster, weight, 
 datasetName, datasetLabels, waittime)
-**** "impfile" is a string identifying the directory and filename of
+**** "inpfile" is a string identifying the directory and filename of
 * Mplus input file to be created by the program. This filename must end with
 * .inp . The data file will automatically be saved to the same directory. This
 * argument is required.
@@ -31,6 +31,13 @@ datasetName, datasetLabels, waittime)
 * for Mplus to finish. If you choose not to view the output, then the program
 * will also not create a dataset for the coefficients. 
 * By default, the output is read into SPSS.
+**** "suppressSPSS" is a boolean argument indicating whether or not you want
+* the program to supress SPSS output while running the model. Typically this
+* output is not useful and merely clogs up the output window. If your program 
+* inconsistently causes SPSS to crash, suppressing the output can sometimes
+* help. However, if your model is not running correctly, the SPSS output can 
+* help you see where the errors are. Setting this argument to True will not 
+* suppress the Mplus output. By default, the SPSS output is not suppressed.
 **** "withinLatent" is a list of lists identifying the relations between observed and 
 * latent variables for the within model. This argument is optional, and can be omitted 
 * if your model does not have any latent variables at the within level. When 
@@ -80,12 +87,20 @@ datasetName, datasetLabels, waittime)
 * will not, although you can still specify individual covariances between 
 * exogenous variables using the "withinCovar" argument described above.
 * By default, the value for corrExo is True.
-**** "withinIdentifiers" is an optional argument provides a list of lists pairing 
+**** "withinIdentifiers" is an optional argument that provides a list of lists pairing 
 * within-cluster coefficients with identifiers that will be used as part of a 
-* Wald Z test. The coefficients part must specifically match a list within
+* Wald Z test. The coefficients part must specifically match an element of
 * the withinModel statement. To do this, you may need to separate the 
 * predictors for a single outcome into different lists. This defaults to None, 
 * which does not assign any identifiers. 
+**** "withinSlopes" is an optional argument that provides a list of lists pairing
+* within-cluster coefficients with identifiers that will be used to test cross-level
+* interactions. The coefficients part must specifically match an element of 
+* the withinModel statement. To do this, you may need to separate the
+* predictors for a single outcome into different lists. This defaults to None, 
+* which does not assign any identifiers. The identifiers created in this statement
+* can be used in the betweenLatent, betweenModel, betweenCovar, and 
+* betweenIdentifiers statements.
 **** "betweenLatent" is a list of lists identifying the relations between observed and 
 * latent variables for the between model. This argument is optional, and can be omitted 
 * if your model does not have any latent variables at the between level. When 
@@ -185,22 +200,33 @@ datasetName, datasetLabels, waittime)
 MplusTwoLevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",
 runModel = True,
 viewOutput = True,
+suppressSPSS = False,
 withinLatent = [ ["CHSES", "chincome_mean", "chfrl_mean", "chmomed_mean"] ],
 withinModel = [ ["CO", "CHSES", "att_ch", "yrs_tch"],
 ["ES", "CHSES", "att_ch", "yrs_tch"],
-["IS", "CHSES", "att_ch", "yrs_tch"] ],
+["IS", "CHSES", "att_ch", "yrs_tch"],
+["CO", "satis"],
+["ES", "satis"],
+["IS", "satis"] ],
 withinCovar = [ ["CO","ES"], ["CO", "IS"] ],
 withinCovEndo = False,
 withinCovExo = True,
 withinIdentifiers = None,
+withinSlopes = [ [ ["CO", "satis"], "StoCO"],
+[ ["ES", "satis"], "StoES"],
+[ ["IS", "satis"], "StoIS"] ],
 betweenLatent = [ ["CHSES", "chincome_mean", "chfrl_mean", "chmomed_mean"] ],
 betweenModel = [ ["CO", "CHSES", "att_ch", "yrs_tch", "schoolsize"],
 ["CO", "Tx"],
 ["ES", "CHSES", "att_ch", "yrs_tch", "schoolsize"],
 ["ES", "Tx"],
 ["IS", "CHSES", "att_ch", "yrs_tch", "schoolsize"] 
-["IS", "Tx"] ],
-betweenCovar = [ ["CO","ES"], ["CO", "IS"] ],
+["IS", "Tx"],
+["StoCO", "schoolsize"],
+["StoES", "schoolsize"],
+["StoIS", "schoolsize"] ],
+betweenCovar = [ ["CO","ES"], ["CO", "IS"],
+["StoCO", "StoES"], ["StoCO", "StoIS"], ["StoES", "StoIS"] ],
 betweenCovEndo = False,
 betweenCovExo = True,
 betweenIdentifiers = [ [ ["CO", "Educ"], "b1"],
@@ -212,7 +238,7 @@ categorical = ["att_ch", "yrs_tch"],
 censored = None,
 count = None,
 nominal = ["Tx",
-cluster = "classid",
+cluster = "school",
 weight = "demoweight",
 datasetName = "CLASS",
 datasetLabels = ["2009 cohort"]
@@ -221,28 +247,32 @@ waittime = 10)
 * interactions (CO, ES, and IS) are predicted by within-school (i.e., classroom)
 * and between-school predictors (defined by the cluster variable school).
 * The toggles are set so that the program will run the model in Mplus 
-* and read the output into SPSS.
+* and read the output into SPSS. The SPSS output is not suppressed.
 * A single latent variable (CHSES) is created to represent child socio-
 * economic status, based on observed variables assessing income 
 * (chincome_mean), free/reduced lunch status (chfrl_mean), and
-* mother education (chmomed_mean). Other within-schol predictors 
-* are teacher attitudes toward childen (att_ch) and teacher experience 
-* (yrs_tch). The exogenous variables (CHSES, att_ch, and yrs_tch) are allowed 
-* to freely covary in the within model. The endogenous variables  (CO, ES, 
-* and IS) are not automatically allowed to covary in the within model, although 
-* two specific covariances are allowed (CO with ES and CO with IS). 
-* Between-school predictors are the number of students in the
-* school (schoolsize) and treatment condition (Tx). 
+* mother education (chmomed_mean). Other within-school predictors 
+* are teacher attitudes toward childen (att_ch), teacher satisfaction (satis), and
+* teacher experience (yrs_tch). The exogenous variables (CHSES, att_ch, and 
+* yrs_tch) are allowed to freely covary in the within model. The endogenous 
+* variables  (CO, ES, and IS) are not automatically allowed to covary in the 
+* within model, although two specific covariances are allowed (CO with ES 
+* and CO with IS). The slopes of teacher satisfaction with the three outcomes 
+* at the within level identified so that they can be used in the between model 
+* to test cross-level interactions. Between-school predictors are the number of 
+* students in the school (schoolsize) and treatment condition (Tx). School size is 
+* also used to predict the relations of satisfaction with the three outcomes.
 * The exogenous variables (CHSES, att_ch, and yrs_tch) are allowed 
 * to freely covary in the between model. The endogenous variables  (CO, ES, 
 * and IS) are not automatically allowed to covary in the between model, although 
-* two specific covariances are allowed (CO with ES and CO with IS). Identifiers
-* are created representing the treatment effects on the three outcomes at
-* A Wald test is created testing whether this collect of effects is significant.
-* The analysis will only include observations where the value of pcond is 1. 
-* att_ch and trs_tch are treated as a categorical variables, whereas Tx is 
-* treated as a nominal variable. The analysis weights the observations using the 
-* values in the variable "demoweight." 
+* two specific covariances among the outcomes are allowed (CO with ES and 
+CO with IS). The three slopes for satisfaction are all allowed to freely covary.
+* Identifiers are created representing the treatment effects on the three 
+* outcomes at A Wald test is created testing whether this collect of effects is 
+* significant. The analysis will only include observations where the value of 
+* pcond is 1. att_ch and trs_tch are treated as a categorical variables, whereas 
+* Tx is treated as a nominal variable. The analysis weights the observations 
+* using the values in the variable "demoweight." 
 * The regression coefficients will be recorded in the 
 * SPSS dataset "CLASS". This dataset will have a label variable, which will 
 * have the value of "2009 cohort" for all results from this analysis.
@@ -262,6 +292,11 @@ waittime = 10)
 * 2014-09-02 Renamed function
     Fixed error when no latent variables
 * 2014-09-05 Added runModel and viewOutput arguments
+* 2015-01-19 Suppressed output
+* 2015-05-02 Added the ability to examine random slopes
+    Added toggle to suppress output
+
+output close all.
 
 set printback = off.
 begin program python.
@@ -478,6 +513,7 @@ class MplusPAprogram:
         self.data += "'" + splitName + "';"
 
     def setVariable(self, fullList, withinLatent, withinModel, withinVar, 
+slopeVars,
 betweenLatent, betweenModel, betweenVar, useobservations, 
 categorical, censored, count, nominal, cluster, weight):
         self.variable += "Names are\n"
@@ -498,7 +534,7 @@ categorical, censored, count, nominal, cluster, weight):
             for equation in betweenLatent:
                 latentName.append(equation[0])
                 for var in equation[1:]:
-                    if (var not in useList):
+                    if (var not in useList and var not in slopeVars):
                         useList.append(var)
         if (withinModel != None):
             for equation in withinModel:
@@ -508,7 +544,7 @@ categorical, censored, count, nominal, cluster, weight):
         if (betweenModel != None):
             for equation in betweenModel:
                 for var in equation:
-                    if (var not in useList and var not in latentName):
+                    if (var not in useList and var not in latentName and var not in slopeVars):
                         useList.append(var)
         self.variable += "Usevariables are\n"
         for var in useList:
@@ -533,15 +569,20 @@ withinVar, betweenVar]
                     self.variable += var + "\n"
         self.variable += ";\n\nMISSING ARE ALL (-999);"
 
-    def setAnalysis(self, cluster):
-        self.analysis += "type = twolevel;"
+    def setAnalysis(self, cluster, MplusWithinSlopes):
+        self.analysis += "type = twolevel"
+        if (MplusWithinSlopes == None):
+            self.analysis += ";"
+        else:
+            self.analysis += " random;"
 
     def setModel(self, MplusWithinLatent, MplusWithinModel, MplusWithinCovar, 
-MplusWithinIdentifiers, withinEndo, withinExo, 
+MplusWithinIdentifiers, withinEndo, withinExo, MplusWithinSlopes, 
 MplusBetweenLatent, MplusBetweenModel, MplusBetweenCovar, 
 MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
 
-        def modelCode(label, latent, model, covar, identifiers, cEndo, cExo):
+        def modelCode(label, latent, model, covar, identifiers, cEndo, cExo, slopes, slopeList,):
+          print slopeList
           code = "%{0}%\n".format(label)
           # Latent variable definitions
           if (latent != None):
@@ -558,7 +599,12 @@ MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
           # Regression equations
           if (model != None):
               for equation in model:
-                  curline = equation[0] + " on"
+                  curline = ""
+                  if (slopes != None):
+                      for s in slopes:
+                          if (equation == s[0]):
+                              curline += s[1] + " | " 
+                  curline += equation[0] + " on"
                   for var in equation[1:]:
                           if (len(curline) + len(var) < 75):
                               curline += " " + var
@@ -574,12 +620,13 @@ MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
         # Getting lists of endogenous and exogenous variables
               endo = []
               for equation in model:
-                  endo.append(equation[0])
+                  if (equation[0] not in slopeList):
+                      endo.append(equation[0])
               endo = list(set(endo))
               exo = []
               for equation in model:
                   for var in equation:
-                      if (var not in endo and var not in exo):
+                      if (var not in endo and var not in exo and var not in slopeList):
                           exo.append(var)
 
         # Add defined covariances
@@ -593,6 +640,7 @@ MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
           if (cExo == True and model != None):
         # Estimate variances for exogenous variables so that they
         # will be included in FIML
+        # Cannot include predictors that are also included as random slopes 
               if (len(exo) > 0):
                   for var in exo:
                       code += "\n" + var + ";"
@@ -625,13 +673,19 @@ MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
           code += "\n\n"
           return(code)
 
+# List of variables involved in random slopes
+        slopeList = []
+        if (MplusWithinSlopes != None):
+            for slope in MplusWithinSlopes:
+                for var in slope[0]:
+                    slopeList.append(var)
 # Within Model
         withinCode = modelCode("WITHIN", MplusWithinLatent, MplusWithinModel, 
-MplusWithinCovar, MplusWithinIdentifiers, withinEndo, withinExo)
+MplusWithinCovar, MplusWithinIdentifiers, withinEndo, withinExo, MplusWithinSlopes, slopeList)
         self.model += withinCode
 # Between Model
         betweenCode = modelCode("BETWEEN", MplusBetweenLatent, MplusBetweenModel, 
-MplusBetweenCovar, MplusBetweenIdentifiers, betweenEndo, betweenExo)
+MplusBetweenCovar, MplusBetweenIdentifiers, betweenEndo, betweenExo, None, slopeList)
         self.model += betweenCode
 
 # Wald test
@@ -1380,15 +1434,24 @@ getCoefficients(self.Zbcoefficients)]
         spss.SetActive(datasetObj)
         spss.EndDataStep()
 
-def MplusTwoLevel(inpfile, runModel = True, viewOutput = True,
+def MplusTwoLevel(inpfile, runModel = True, viewOutput = True, suppressSPSS = False,
 withinLatent = None, withinModel = None, withinVar = None, withinCovar = None, 
-withinCovEndo = False, withinCovExo = True, withinIdentifiers = None,
+withinCovEndo = False, withinCovExo = True, withinIdentifiers = None, withinSlopes = None,
 betweenLatent = None, betweenModel = None, betweenVar = None, betweenCovar = None, 
 betweenCovEndo = False, betweenCovExo = True, betweenIdentifiers = None,
 wald = None, useobservations = None, 
 categorical = None, censored = None, count = None, nominal = None,
 cluster = None, weight = None, 
 datasetName = None, datasetLabels = [], waittime = 5):
+
+    spss.Submit("display scratch.")
+
+# Redirect output
+    if (suppressSPSS == True):
+        submitstring = """OMS /SELECT ALL EXCEPT = [WARNINGS] 
+        /DESTINATION VIEWER = NO 
+        /TAG = 'NoJunk'."""
+        spss.Submit(submitstring)
 
 # Find directory and filename
     for t in range(len(inpfile)):
@@ -1404,6 +1467,27 @@ datasetName = None, datasetLabels = [], waittime = 5):
         SPSSvariables.append(spss.GetVariableName(varnum))
         SPSSvariablesCaps.append(spss.GetVariableName(varnum).upper())
 
+# Obtain lists of latent variables
+    withinLatentVars = []
+    if (withinLatent != None):
+        for t in withinLatent:
+            withinLatentVars.append(t[0].upper())
+    betweenLatentVars = []
+    if (betweenLatent != None):
+        for t in betweenLatent:
+            betweenLatentVars.append(t[0].upper())
+
+# Obtain list of slope identifiers
+    slopeVars = []
+    if (withinSlopes != None):
+        for t in withinSlopes:
+            slopeVars.append(t[1].upper())
+
+# Restore output
+    if (suppressSPSS == True):
+        submitstring = """OMSEND TAG = 'NoJunk'."""
+        spss.Submit(submitstring)
+
 # Check for errors
     error = 0
     if (fext.upper() != ".INP"):
@@ -1412,24 +1496,22 @@ datasetName = None, datasetLabels = [], waittime = 5):
     if (not os.path.exists(outdir)):
         print("Error: Output directory does not exist")
         error = 1
-    if (withinLatent != None):
-        variableError = 0
-        for equation in withinLatent:
-            if (equation[0].upper() in SPSSvariablesCaps):
-                variableError = 1
-                break
-            if (variableError == 1):
-                print "Error: Latent variable name overlaps with existing variable name"
-                error = 1
-    if (betweenLatent != None):
-        variableError = 0
-        for equation in betweenLatent:
-            if (equation[0].upper() in SPSSvariablesCaps):
-                variableError = 1
-                break
-            if (variableError == 1):
-                print "Error: Latent variable name overlaps with existing variable name"
-                error = 1
+    variableError = 0
+    for var in withinLatentVars:
+        if (var in SPSSvariablesCaps):
+            variableError = 1
+            break
+    if (variableError == 1):
+            print "Error: Within latent variable name overlaps with existing variable name"
+            error = 1
+    variableError = 0
+    for var in betweenLatentVars:
+        if (var in SPSSvariablesCaps):
+            variableError = 1
+            break
+    if (variableError == 1):
+            print "Error: Between latent variable name overlaps with existing variable name"
+            error = 1
     if (withinLatent != None):
         variableError = 0
         for equation in withinLatent:
@@ -1444,29 +1526,27 @@ datasetName = None, datasetLabels = [], waittime = 5):
         variableError = 0
         for equation in betweenLatent:
             for var in equation[1:]:
-                if (var.upper() not in SPSSvariablesCaps):
+                if (var.upper() not in SPSSvariablesCaps and var.upper() not in slopeVars):
                     variableError = 1
         if (variableError == 1):
             print("Error: Variable listed in between latent variable definition not in current data set")
             error = 1
     if (withinLatent != None and betweenLatent != None):
         variableError = 0
-        for w in withinLatent:
-            for b in betweenLatent:
-                if (w[0].upper() == b[0].upper()):
+        for w in withinLatentVars:
+            for b in betweenLatentVars:
+                if (w == b):
                     variableError = 1
         if (variableError == 1):
-            print ("Error: Same name used for within and between latent variables")
+            print ("Error: Same name used for within and between latent variable definitions")
+    variableError = 0
     if (withinModel != None):
-        variableError = 0
         for equation in withinModel:
             for var in equation:
-                if (var.upper() not in SPSSvariablesCaps):
+                if (var.upper() not in SPSSvariablesCaps 
+and var.upper() not in withinLatentVars):
                     variableError = 1
-                    if (withinLatent != None):
-                        for latentvar in withinLatent:
-                            if (var.upper() == latentvar[0].upper()):
-                                variableError = 0
+                    break
         if (variableError == 1):
             print("Error: Variable listed in within model not in current data set")
             error = 1
@@ -1474,17 +1554,24 @@ datasetName = None, datasetLabels = [], waittime = 5):
         variableError = 0
         for equation in betweenModel:
             for var in equation:
-                if (var.upper() not in SPSSvariablesCaps):
+                if (var.upper() not in SPSSvariablesCaps 
+and var.upper() not in slopeVars
+and var.upper() not in betweenLatentVars):
                     variableError = 1
-                    if (betweenLatent != None):
-                        for latentvar in betweenLatent:
-                            if (var.upper() == latentvar[0].upper()):
-                                variableError = 0
+                    break
         if (variableError == 1):
             print("Error: Variable listed in between model not in current data set")
             error = 1
 
     if (error == 0):
+
+# Redirect output
+        if (suppressSPSS == True):
+            submitstring = """OMS /SELECT ALL EXCEPT = [WARNINGS] 
+        /DESTINATION VIEWER = NO 
+        /TAG = 'NoJunk'."""
+            spss.Submit(submitstring)
+
 # Export data
         dataname = outdir + fname + ".dat"
         MplusVariables = exportMplus(dataname)
@@ -1559,6 +1646,24 @@ datasetName = None, datasetLabels = [], waittime = 5):
                             if (idEquations[t][i] == s):
                                 idEquations[t][i] = m
                     MplusWithinIdentifiers.append([idEquations[t], withinIdentifiers[t][1]])
+
+    # Convert withinSlopes to Mplus
+            if (withinSlopes == None):
+                MplusWithinSlopes = None
+            else:
+                MplusWithinSlopes = []
+                idEquations = []
+                for t in withinSlopes:
+                    j = []
+                    for i in t[0]:
+                        j.append(i.upper())
+                    idEquations.append(j)
+                for t in range(len(idEquations)):
+                    for i in range(len(idEquations[t])):
+                        for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                            if (idEquations[t][i] == s):
+                                idEquations[t][i] = m
+                    MplusWithinSlopes.append([idEquations[t], withinSlopes[t][1]])
 
     # Define betweenModel using Mplus variables
             if (betweenModel == None):
@@ -1656,14 +1761,15 @@ datasetName = None, datasetLabels = [], waittime = 5):
             pathProgram.setTitle("Created by MplusPathAnalysis")
             pathProgram.setData(dataname)
             pathProgram.setVariable(MplusVariables, MplusWithinLatent, 
-    MplusWithinModel, MplusWithinVar, MplusBetweenLatent, MplusBetweenModel, 
+    MplusWithinModel, MplusWithinVar, slopeVars,
+    MplusBetweenLatent, MplusBetweenModel, 
     MplusBetweenVar, MplusUseobservations, MplusCategorical, MplusCensored, 
     MplusCount, MplusNominal, MplusCluster, MplusWeight)
-            pathProgram.setAnalysis(MplusCluster)
+            pathProgram.setAnalysis(MplusCluster, MplusWithinSlopes)
             pathProgram.setModel(MplusWithinLatent, MplusWithinModel, MplusWithinCovar, 
-    MplusWithinIdentifiers, withinCovEndo, withinCovExo, MplusBetweenLatent, 
-    MplusBetweenModel, MplusBetweenCovar, MplusBetweenIdentifiers, 
-    betweenCovEndo, betweenCovExo,wald)
+MplusWithinIdentifiers, withinCovEndo, withinCovExo, MplusWithinSlopes, 
+MplusBetweenLatent, MplusBetweenModel, MplusBetweenCovar, MplusBetweenIdentifiers, 
+betweenCovEndo, betweenCovExo,wald)
             pathProgram.setOutput("stdyx;\nmodindices;")
             pathProgram.write(outdir + fname + ".inp")
 
@@ -1690,16 +1796,35 @@ datasetName = None, datasetLabels = [], waittime = 5):
             batchfile(outdir, fname)
             time.sleep(waittime)
 
+# Restore output
+        if (suppressSPSS == True):
+            submitstring = """OMSEND TAG = 'NoJunk'."""
+            spss.Submit(submitstring)
+
 # Parse output
         if (viewOutput == True):
             pathOutput = MplusPAoutput(outdir + fname + ".out", 
     MplusVariables, SPSSvariables)
             pathOutput.toSPSSoutput()
 
+# Redirect output
+            if (suppressSPSS == True):
+                submitstring = """OMS /SELECT ALL EXCEPT = [WARNINGS] 
+        /DESTINATION VIEWER = NO 
+        /TAG = 'NoJunk'."""
+                spss.Submit(submitstring)
+
     # Create coefficient dataset
             if (datasetName != None):
                 pathOutput.toSPSSdata(datasetName, datasetLabels)
 
+# Restore output
+            if (suppressSPSS == True):
+                submitstring = """OMSEND TAG = 'NoJunk'."""
+                spss.Submit(submitstring)
+
 end program python.
 set printback = on.
-COMMENT BOOKMARK;LINE_NUM=1382;ID=1.
+COMMENT BOOKMARK;LINE_NUM=514;ID=2.
+COMMENT BOOKMARK;LINE_NUM=578;ID=4.
+COMMENT BOOKMARK;LINE_NUM=1436;ID=1.
