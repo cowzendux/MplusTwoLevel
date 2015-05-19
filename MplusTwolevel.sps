@@ -7,8 +7,8 @@
 * that will perform the path analysis in Mplus, then loads the important
 * parts of the Mplus output into the SPSS output window.
 
-**** Usage: MplusTwoLevel(inpfile, runModel, viewOutput,
-suppressSPSS, withinLatent, withinModel, withinVar, withinCovar, 
+**** Usage: MplusTwoLevel(inpfile, runModel, viewOutput, suppressSPSS,
+withinLatent, withinModel, withinVar, withinCovar, 
 withinCovEndo, withinCovExo, withinIdentifiers, withinSlopes,
 betweenLatent, betweenModel, betweenVar, betweenCovar,
 betweenCovEndo, betweenCovExo, betweenIdentifiers,
@@ -295,6 +295,7 @@ CO with IS). The three slopes for satisfaction are all allowed to freely covary.
 * 2015-01-19 Suppressed output
 * 2015-05-02 Added the ability to examine random slopes
     Added toggle to suppress output
+* 2015-05-18 Corrected extraction of output file
 
 output close all.
 
@@ -582,7 +583,6 @@ MplusBetweenLatent, MplusBetweenModel, MplusBetweenCovar,
 MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
 
         def modelCode(label, latent, model, covar, identifiers, cEndo, cExo, slopes, slopeList,):
-          print slopeList
           code = "%{0}%\n".format(label)
           # Latent variable definitions
           if (latent != None):
@@ -749,8 +749,8 @@ def getCoefficients(outputBlock):
                     coefficients.append(line)
     return coefficients
 
-class MplusPAoutput:
-    def __init__(self, filename, Mplus, SPSS):
+class MplusTLoutput:
+    def __init__(self, filename, Mplus, SPSS, slopes):
         infile = open(filename, "rb")
         fileText = infile.read()
         infile.close()
@@ -893,6 +893,8 @@ class MplusPAoutput:
         start = end
         secexists = 0
         for t in range(start, len(outputList)):
+            if ("QUALITY OF NUMERICAL RESULTS" in outputList[t]):
+                break
             if (re.search(r"\bBY\b", outputList[t])):
                 start = t
                 secexists = 1
@@ -947,171 +949,183 @@ re.search(r"\bVariances\b", outputList[t])):
 
 # Between Unstandardized Descriptives
         start = end
+        print "Between Unstandardized Descriptives"
+        print outputList[start]
         for t in range(start, len(outputList)):
             if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
 "MODEL COMMAND" in outputList[t] or
-"STANDARDIZED" in outputList[t]):
+"STANDARDIZED" in outputList[t]or
+"QUALITY OF NUMERICAL RESULTS" in outputList[t]):
                 end = t
                 break
         self.bdescriptives = "\n".join(outputList[start:end])
         self.bdescriptives = removeBlanks(self.bdescriptives)
 
-# Within standardized measurement model
-        if ("MODEL ESTIMATION TERMINATED NORMALLY" in self.warnings):
-            start = end
-            secexists = 0
-            for t in range(start, len(outputList)):
-                if (re.search(r"\bBY\b", outputList[t])):
-                    start = t
-                    secexists = 1
-                    break
-                if (re.search(r"\bBetween Level\b", outputList[t])):
-                    break
-            if (secexists == 1):
+        noStand = 0
+        for t in range(len(outputList)):
+            if ("STANDARDIZED (STD, STDY, STDYX) options are not available" in outputList[t]):
+                noStand = 1
+                break
+            if ("SUMMARY OF ANALYSIS" in outputList[t]):
+                break
+    
+        if (noStand == 0):
+    # Within standardized measurement model
+            if ("MODEL ESTIMATION TERMINATED NORMALLY" in self.warnings):
+                start = end
+                secexists = 0
                 for t in range(start, len(outputList)):
-                    if (re.search(r"\bON\b", outputList[t]) or
-        re.search(r"\bWITH\b", outputList[t]) or
-        re.search(r"\bMeans\b", outputList[t]) or 
-        re.search(r"\bVariances\b", outputList[t]) ):
+                    if (re.search(r"\bBY\b", outputList[t])):
+                        start = t
+                        secexists = 1
+                        break
+                    if (re.search(r"\bBetween Level\b", outputList[t])):
+                        break
+                if (secexists == 1):
+                    for t in range(start, len(outputList)):
+                        if (re.search(r"\bON\b", outputList[t]) or
+            re.search(r"\bWITH\b", outputList[t]) or
+            re.search(r"\bMeans\b", outputList[t]) or 
+            re.search(r"\bVariances\b", outputList[t]) ):
+                            end = t
+                            break
+                    self.Zwmeasurement = "\n".join(outputList[start:end])
+                    self.Zwmeasurement = removeBlanks(self.Zwmeasurement)
+
+        # Within standardized coefficients
+                start = end
+                secexists = 0
+                for t in range(start, len(outputList)):
+                    if (re.search(r"\bON\b", outputList[t])):
+                        start = t
+                        secexists = 1
+                        break
+                    if (re.search(r"\bBetween Level\b", outputList[t])):
+                        break
+                if (secexists == 1):
+                    for t in range(start, len(outputList)):
+                        if (re.search(r"\bWITH\b", outputList[t]) or
+            re.search(r"\bMeans\b", outputList[t]) or 
+            re.search(r"\bVariances\b", outputList[t])):
+                            end = t
+                            break
+                    self.Zwcoefficients = "\n".join(outputList[start:end])
+                    self.Zwcoefficients = removeBlanks(self.Zwcoefficients)
+
+        # Within standardized covariances
+                start = end
+                secexists = 0
+                for t in range(start, len(outputList)):
+                    if (re.search(r"\bWITH\b", outputList[t])):
+                        start = t
+                        secexists = 1
+                        break
+                    if (re.search(r"\bBetween Level\b", outputList[t])):
+                        break
+                if (secexists == 1):
+                    for t in range(start, len(outputList)):
+                        if (re.search(r"\bMeans\b", outputList[t]) or 
+            re.search(r"\bVariances\b", outputList[t])):
+                            end = t
+                            break
+                    self.Zwcovariances = "\n".join(outputList[start:end])
+                    self.Zwcovariances = removeBlanks(self.Zwcovariances)
+
+        # Within Unstandardized Descriptives
+                start = end
+                for t in range(start, len(outputList)):
+                    if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
+        "MODEL COMMAND" in outputList[t] or
+        "Between Level" in outputList[t]):
                         end = t
                         break
-                self.Zwmeasurement = "\n".join(outputList[start:end])
-                self.Zwmeasurement = removeBlanks(self.Zwmeasurement)
+                self.Zwdescriptives = "\n".join(outputList[start:end])
+                self.Zwdescriptives = removeBlanks(self.Zwdescriptives)
 
-    # Within standardized coefficients
-            start = end
-            secexists = 0
-            for t in range(start, len(outputList)):
-                if (re.search(r"\bON\b", outputList[t])):
-                    start = t
-                    secexists = 1
-                    break
-                if (re.search(r"\bBetween Level\b", outputList[t])):
-                    break
-            if (secexists == 1):
+        # Between standardized measurement model
+                start = end
+                secexists = 0
                 for t in range(start, len(outputList)):
-                    if (re.search(r"\bWITH\b", outputList[t]) or
-        re.search(r"\bMeans\b", outputList[t]) or 
-        re.search(r"\bVariances\b", outputList[t])):
+                    if (re.search(r"\bBY\b", outputList[t])):
+                        start = t
+                        secexists = 1
+                        break
+                if (secexists == 1):
+                    for t in range(start, len(outputList)):
+                        if (re.search(r"\bON\b", outputList[t]) or
+            re.search(r"\bWITH\b", outputList[t]) or
+            re.search(r"\bMeans\b", outputList[t]) or 
+            re.search(r"\bVariances\b", outputList[t]) ):
+                            end = t
+                            break
+                    self.Zbmeasurement = "\n".join(outputList[start:end])
+                    self.Zbmeasurement = removeBlanks(self.Zbmeasurement)
+
+        # Between standardized coefficients
+                start = end
+                secexists = 0
+                for t in range(start, len(outputList)):
+                    if (re.search(r"\bON\b", outputList[t])):
+                        start = t
+                        secexists = 1
+                        break
+                if (secexists == 1):
+                    for t in range(start, len(outputList)):
+                        if (re.search(r"\bWITH\b", outputList[t]) or
+            re.search(r"\bMeans\b", outputList[t]) or 
+            re.search(r"\bVariances\b", outputList[t])):
+                            end = t
+                            break
+                    self.Zbcoefficients = "\n".join(outputList[start:end])
+                    self.Zbcoefficients = removeBlanks(self.Zbcoefficients)
+
+        # Between standardized covariances
+                start = end
+                secexists = 0
+                for t in range(start, len(outputList)):
+                    if (re.search(r"\bWITH\b", outputList[t])):
+                        start = t
+                        secexists = 1
+                        break
+                    if (re.search(r"\bR-SQUARE\b", outputList[t])):
+                        break
+                if (secexists == 1):
+                    for t in range(start, len(outputList)):
+                        if (re.search(r"\bMeans\b", outputList[t]) or 
+            re.search(r"\bVariances\b", outputList[t])):
+                            end = t
+                            break
+                    self.Zbcovariances = "\n".join(outputList[start:end])
+                    self.Zbcovariances = removeBlanks(self.Zbcovariances)
+
+        # Between standardized Descriptives
+                start = end
+                for t in range(start, len(outputList)):
+                    if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
+        "MODEL COMMAND" in outputList[t] or
+        "R-SQUARE" in outputList[t]):
                         end = t
                         break
-                self.Zwcoefficients = "\n".join(outputList[start:end])
-                self.Zwcoefficients = removeBlanks(self.Zwcoefficients)
+                self.Zbdescriptives = "\n".join(outputList[start:end])
+                self.Zbdescriptives = removeBlanks(self.Zbdescriptives)
 
-    # Within standardized covariances
-            start = end
-            secexists = 0
-            for t in range(start, len(outputList)):
-                if (re.search(r"\bWITH\b", outputList[t])):
-                    start = t
-                    secexists = 1
-                    break
-                if (re.search(r"\bBetween Level\b", outputList[t])):
-                    break
-            if (secexists == 1):
+    # Within R squares
+                start = end
                 for t in range(start, len(outputList)):
-                    if (re.search(r"\bMeans\b", outputList[t]) or 
-        re.search(r"\bVariances\b", outputList[t])):
+                    if ("Between Level" in outputList[t]):
                         end = t
                         break
-                self.Zwcovariances = "\n".join(outputList[start:end])
-                self.Zwcovariances = removeBlanks(self.Zwcovariances)
+                self.wr2 = "\n".join(outputList[start:end])
+                self.wr2 = removeBlanks(self.wr2)
 
-    # Within Unstandardized Descriptives
-            start = end
-            for t in range(start, len(outputList)):
-                if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
-    "MODEL COMMAND" in outputList[t] or
-    "Between Level" in outputList[t]):
-                    end = t
-                    break
-            self.Zwdescriptives = "\n".join(outputList[start:end])
-            self.Zwdescriptives = removeBlanks(self.Zwdescriptives)
-
-    # Between standardized measurement model
-            start = end
-            secexists = 0
-            for t in range(start, len(outputList)):
-                if (re.search(r"\bBY\b", outputList[t])):
-                    start = t
-                    secexists = 1
-                    break
-            if (secexists == 1):
+    # Between R squares
+                start = end
                 for t in range(start, len(outputList)):
-                    if (re.search(r"\bON\b", outputList[t]) or
-        re.search(r"\bWITH\b", outputList[t]) or
-        re.search(r"\bMeans\b", outputList[t]) or 
-        re.search(r"\bVariances\b", outputList[t]) ):
+                    if ("QUALITY OF NUMERICAL RESULTS" in outputList[t]):
                         end = t
                         break
-                self.Zbmeasurement = "\n".join(outputList[start:end])
-                self.Zbmeasurement = removeBlanks(self.Zbmeasurement)
-
-    # Between standardized coefficients
-            start = end
-            secexists = 0
-            for t in range(start, len(outputList)):
-                if (re.search(r"\bON\b", outputList[t])):
-                    start = t
-                    secexists = 1
-                    break
-            if (secexists == 1):
-                for t in range(start, len(outputList)):
-                    if (re.search(r"\bWITH\b", outputList[t]) or
-        re.search(r"\bMeans\b", outputList[t]) or 
-        re.search(r"\bVariances\b", outputList[t])):
-                        end = t
-                        break
-                self.Zbcoefficients = "\n".join(outputList[start:end])
-                self.Zbcoefficients = removeBlanks(self.Zbcoefficients)
-
-    # Between standardized covariances
-            start = end
-            secexists = 0
-            for t in range(start, len(outputList)):
-                if (re.search(r"\bWITH\b", outputList[t])):
-                    start = t
-                    secexists = 1
-                    break
-                if (re.search(r"\bR-SQUARE\b", outputList[t])):
-                    break
-            if (secexists == 1):
-                for t in range(start, len(outputList)):
-                    if (re.search(r"\bMeans\b", outputList[t]) or 
-        re.search(r"\bVariances\b", outputList[t])):
-                        end = t
-                        break
-                self.Zbcovariances = "\n".join(outputList[start:end])
-                self.Zbcovariances = removeBlanks(self.Zbcovariances)
-
-    # Between standardized Descriptives
-            start = end
-            for t in range(start, len(outputList)):
-                if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
-    "MODEL COMMAND" in outputList[t] or
-    "R-SQUARE" in outputList[t]):
-                    end = t
-                    break
-            self.Zbdescriptives = "\n".join(outputList[start:end])
-            self.Zbdescriptives = removeBlanks(self.Zbdescriptives)
-
-# Within R squares
-            start = end
-            for t in range(start, len(outputList)):
-                if ("Between Level" in outputList[t]):
-                    end = t
-                    break
-            self.wr2 = "\n".join(outputList[start:end])
-            self.wr2 = removeBlanks(self.wr2)
-
-# Between R squares
-            start = end
-            for t in range(start, len(outputList)):
-                if ("QUALITY OF NUMERICAL RESULTS" in outputList[t]):
-                    end = t
-                    break
-            self.br2 = "\n".join(outputList[start:end])
-            self.br2 = removeBlanks(self.br2)
+                self.br2 = "\n".join(outputList[start:end])
+                self.br2 = removeBlanks(self.br2)
 
 # Within Modification indices
             for t in range(end, len(outputList)):
@@ -1149,6 +1163,8 @@ re.search(r"\bVariances\b", outputList[t])):
 # Making all variables length of 23
 
 # Variables
+        Mplus.extend(slopes)
+        SPSS.extend(slopes)
         for var1, var2 in zip(Mplus, SPSS):
             var1 += " "*(8-len(var1))
             var1 = " " + var1 + " "
@@ -1803,8 +1819,8 @@ betweenCovEndo, betweenCovExo,wald)
 
 # Parse output
         if (viewOutput == True):
-            pathOutput = MplusPAoutput(outdir + fname + ".out", 
-    MplusVariables, SPSSvariables)
+            pathOutput = MplusTLoutput(outdir + fname + ".out", 
+    MplusVariables, SPSSvariables, slopeVars)
             pathOutput.toSPSSoutput()
 
 # Redirect output
@@ -1825,6 +1841,4 @@ betweenCovEndo, betweenCovExo,wald)
 
 end program python.
 set printback = on.
-COMMENT BOOKMARK;LINE_NUM=514;ID=2.
-COMMENT BOOKMARK;LINE_NUM=578;ID=4.
-COMMENT BOOKMARK;LINE_NUM=1436;ID=1.
+COMMENT BOOKMARK;LINE_NUM=1452;ID=1.
