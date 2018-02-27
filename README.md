@@ -1,4 +1,4 @@
-#MplusTwoLevel
+# MplusTwoLevel
 
 SPSS Python Extension function that will use Mplus to run a two-level model from within SPSS
 
@@ -6,7 +6,7 @@ This function allows users to identify a path model that they want to test on an
 
 This and other SPSS Python Extension functions can be found at http://www.stat-help.com/python.html
 
-##Usage
+## Usage
 **MplusTwoLevel(inpfile, runModel, viewOutput, suppressSPSS, withinLatent, withinModel, withinVar, withinCovar, withinCovEndo, withinCovExo, withinIdentifiers, withinSlopes, betweenLatent, betweenModel, betweenVar, betweenCovar, betweenCovEndo, betweenCovExo, betweenIdentifiers, useobservations, wald, categorical, censored, count, nominal, cluster, weight, datasetName, datasetLabels, waittime)**
 * "inpfile" is a string identifying the directory and filename of Mplus input file to be created by the program. This filename must end with .inp . The data file will automatically be saved to the same directory. This argument is required.
 * "runModel" is a boolean argument indicating whether or not you want the program to actually run the program it creates based on the model you define. You may choose to not run the model when you want to use the program to load an existing output file into SPSS. However, when doing this, you should first load the corresponding data set so that the function can determine the appropriate translation between the Mplus variable names and SPSS variable names. By default, the model is run.
@@ -39,7 +39,7 @@ This and other SPSS Python Extension functions can be found at http://www.stat-h
 * "datasetLabels" is an optional argument that identifies a list of labels that would be applied to the datasets.  This can be useful if you are appending the results from multiple analyses to the same dataset.
 * "waittime" is an optional argument that specifies how many seconds the program should wait after running the Mplus program before it tries to read the output file. This defaults to 5. You should be sure that you leave enough time for Mplus to finish the analyses before trying to import them into SPSS.
 
-##Example 1 - Simple specification
+## Example 1 - Simple specification
 **MplusTwoLevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",  
 withinModel = [ ["CO", "att_ch", "yrs_tch"] ],  
 withinCovExo = True,  
@@ -52,7 +52,7 @@ cluster = "school" )**
 * Between-school predictors are the number of students in the school (schoolsize) and treatment condition (Tx). 
 * The exogenous variables (Tx, att_ch, yrs_tch, and schoolsize) are allowed to freely covary in the between model. 
 
-##Example 2 - Full specification
+## Example 2 - Full specification
 **MplusTwoLevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",  
 runModel = True,  
 viewOutput = True,  
@@ -115,7 +115,7 @@ waittime = 10)**
 * The regression coefficients will be recorded in the SPSS dataset "CLASS". This dataset will have a label variable, which will have the value of "2009 cohort" for all results from this analysis.
 * The program will wait 10 seconds after starting to run the Mplus program before it tries to read the results back into SPSS.
 
-##Example 3 - Only reading output
+## Example 3 - Only reading output
 **MplusTwoLevel(inpfile = "C:/users/jamie/workspace/spssmplus/path.inp",  
 runModel = False,  
 withinModel = [ ["CO", "att_ch", "yrs_tch"] ],  
