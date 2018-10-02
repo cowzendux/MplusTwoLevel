@@ -351,6 +351,7 @@ CO with IS). The three slopes for satisfaction are all allowed to freely covary.
 * 2018-04-28b Added datasetMeans
 * 2018-04-28c Corrected error where means are reported with 
     intercepts
+* 2018-10-02 Still writes .inp file when runModel = False
 
 set printback = off.
 begin program python.
@@ -1804,214 +1805,213 @@ and var.upper() not in betweenLatentVars):
         dataname = outdir + fname + ".dat"
         MplusVariables = exportMplus(dataname)
  
-        if (runModel == True):
-    # Define within latent variables using Mplus variables
-            if (withinLatent == None):
-                MplusWithinLatent = None
-            else:
-                MplusWithinLatent = []
-                for t in withinLatent:
-                    MplusWithinLatent.append([i.upper() for i in t])
-                for t in range(len(MplusWithinLatent)):
-                    for i in range(len(MplusWithinLatent[t])):
-                        for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                            if (MplusWithinLatent[t][i] == s):
-                                MplusWithinLatent[t][i] = m
+# Define within latent variables using Mplus variables
+        if (withinLatent == None):
+            MplusWithinLatent = None
+        else:
+            MplusWithinLatent = []
+            for t in withinLatent:
+                MplusWithinLatent.append([i.upper() for i in t])
+            for t in range(len(MplusWithinLatent)):
+                for i in range(len(MplusWithinLatent[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (MplusWithinLatent[t][i] == s):
+                            MplusWithinLatent[t][i] = m
 
-    # Define between latent variables using Mplus variables
-            if (betweenLatent == None):
-                MplusBetweenLatent = None
-            else:
-                MplusBetweenLatent = []
-                for t in betweenLatent:
-                    MplusBetweenLatent.append([i.upper() for i in t])
-                for t in range(len(MplusBetweenLatent)):
-                    for i in range(len(MplusBetweenLatent[t])):
-                        for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                            if (MplusBetweenLatent[t][i] == s):
-                                MplusBetweenLatent[t][i] = m
+# Define between latent variables using Mplus variables
+        if (betweenLatent == None):
+            MplusBetweenLatent = None
+        else:
+            MplusBetweenLatent = []
+            for t in betweenLatent:
+                MplusBetweenLatent.append([i.upper() for i in t])
+            for t in range(len(MplusBetweenLatent)):
+                for i in range(len(MplusBetweenLatent[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (MplusBetweenLatent[t][i] == s):
+                            MplusBetweenLatent[t][i] = m
 
-    # Define withinModel using Mplus variables
-            if (withinModel == None):
-                MplusWithinModel = None
-            else:
-                MplusWithinModel = []
-                for t in withinModel:
-                    MplusWithinModel.append([i.upper() for i in t])
-                for t in range(len(MplusWithinModel)):
-                    for i in range(len(MplusWithinModel[t])):
-                        for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                            if (MplusWithinModel[t][i] == s):
-                                MplusWithinModel[t][i] = m
+# Define withinModel using Mplus variables
+        if (withinModel == None):
+            MplusWithinModel = None
+        else:
+            MplusWithinModel = []
+            for t in withinModel:
+                MplusWithinModel.append([i.upper() for i in t])
+            for t in range(len(MplusWithinModel)):
+                for i in range(len(MplusWithinModel[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (MplusWithinModel[t][i] == s):
+                            MplusWithinModel[t][i] = m
 
-    # Convert variables in betweenCovariance list to Mplus
-            if (withinCovar == None):
-                MplusWithinCovar = None
-            else:
-                MplusWithinCovar = []
-                for t in withinCovar:
-                    MplusWithinCovar.append([i.upper() for i in t])
-                for t in range(len(MplusWithinCovar)):
-                    for i in range(2):
-                        for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                            if (MplusWithinCovar[t][i] == s):
-                                MplusWithinCovar[t][i] = m
+# Convert variables in betweenCovariance list to Mplus
+        if (withinCovar == None):
+            MplusWithinCovar = None
+        else:
+            MplusWithinCovar = []
+            for t in withinCovar:
+                MplusWithinCovar.append([i.upper() for i in t])
+            for t in range(len(MplusWithinCovar)):
+                for i in range(2):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (MplusWithinCovar[t][i] == s):
+                            MplusWithinCovar[t][i] = m
 
-    # Convert withinIdentifiers to Mplus
-            if (withinIdentifiers == None):
-                MplusWithinIdentifiers = None
-            else:
-                MplusWithinIdentifiers = []
-                idEquations = []
-                for t in withinIdentifiers:
-                    j = []
-                    for i in t[0]:
-                        j.append(i.upper())
-                    idEquations.append(j)
-                for t in range(len(idEquations)):
-                    for i in range(len(idEquations[t])):
-                        for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                            if (idEquations[t][i] == s):
-                                idEquations[t][i] = m
-                    MplusWithinIdentifiers.append([idEquations[t], withinIdentifiers[t][1]])
+# Convert withinIdentifiers to Mplus
+        if (withinIdentifiers == None):
+            MplusWithinIdentifiers = None
+        else:
+            MplusWithinIdentifiers = []
+            idEquations = []
+            for t in withinIdentifiers:
+                j = []
+                for i in t[0]:
+                    j.append(i.upper())
+                idEquations.append(j)
+            for t in range(len(idEquations)):
+                for i in range(len(idEquations[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (idEquations[t][i] == s):
+                            idEquations[t][i] = m
+                MplusWithinIdentifiers.append([idEquations[t], withinIdentifiers[t][1]])
 
-    # Convert withinSlopes to Mplus
-            if (withinSlopes == None):
-                MplusWithinSlopes = None
-            else:
-                MplusWithinSlopes = []
-                idEquations = []
-                for t in withinSlopes:
-                    j = []
-                    for i in t[0]:
-                        j.append(i.upper())
-                    idEquations.append(j)
-                for t in range(len(idEquations)):
-                    for i in range(len(idEquations[t])):
-                        for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                            if (idEquations[t][i] == s):
-                                idEquations[t][i] = m
-                    MplusWithinSlopes.append([idEquations[t], withinSlopes[t][1]])
+# Convert withinSlopes to Mplus
+        if (withinSlopes == None):
+            MplusWithinSlopes = None
+        else:
+            MplusWithinSlopes = []
+            idEquations = []
+            for t in withinSlopes:
+                j = []
+                for i in t[0]:
+                    j.append(i.upper())
+                idEquations.append(j)
+            for t in range(len(idEquations)):
+                for i in range(len(idEquations[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (idEquations[t][i] == s):
+                            idEquations[t][i] = m
+                MplusWithinSlopes.append([idEquations[t], withinSlopes[t][1]])
 
-    # Define betweenModel using Mplus variables
-            if (betweenModel == None):
-                MplusBetweenModel = None
-            else:
-                MplusBetweenModel = []
-                for t in betweenModel:
-                    MplusBetweenModel.append([i.upper() for i in t])
-                for t in range(len(MplusBetweenModel)):
-                    for i in range(len(MplusBetweenModel[t])):
-                        for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                            if (MplusBetweenModel[t][i] == s):
-                                MplusBetweenModel[t][i] = m
+# Define betweenModel using Mplus variables
+        if (betweenModel == None):
+            MplusBetweenModel = None
+        else:
+            MplusBetweenModel = []
+            for t in betweenModel:
+                MplusBetweenModel.append([i.upper() for i in t])
+            for t in range(len(MplusBetweenModel)):
+                for i in range(len(MplusBetweenModel[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (MplusBetweenModel[t][i] == s):
+                            MplusBetweenModel[t][i] = m
 
-    # Convert variables in betweenCovariance list to Mplus
-            if (betweenCovar == None):
-                MplusBetweenCovar = None
-            else:
-                MplusBetweenCovar = []
-                for t in betweenCovar:
-                    MplusBetweenCovar.append([i.upper() for i in t])
-                for t in range(len(MplusBetweenCovar)):
-                    for i in range(2):
-                        for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                            if (MplusBetweenCovar[t][i] == s):
-                                MplusBetweenCovar[t][i] = m
+# Convert variables in betweenCovariance list to Mplus
+        if (betweenCovar == None):
+            MplusBetweenCovar = None
+        else:
+            MplusBetweenCovar = []
+            for t in betweenCovar:
+                MplusBetweenCovar.append([i.upper() for i in t])
+            for t in range(len(MplusBetweenCovar)):
+                for i in range(2):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (MplusBetweenCovar[t][i] == s):
+                            MplusBetweenCovar[t][i] = m
 
-    # Convert betweenIdentifiers to Mplus
-            if (betweenIdentifiers == None):
-                MplusBetweenIdentifiers = None
-            else:
-                MplusBetweenIdentifiers = []
-                idEquations = []
-                for t in betweenIdentifiers:
-                    j = []
-                    for i in t[0]:
-                        j.append(i.upper())
-                    idEquations.append(j)
-                for t in range(len(idEquations)):
-                    for i in range(len(idEquations[t])):
-                        for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                            if (idEquations[t][i] == s):
-                                idEquations[t][i] = m
-                    MplusBetweenIdentifiers.append([idEquations[t], betweenIdentifiers[t][1]])
+# Convert betweenIdentifiers to Mplus
+        if (betweenIdentifiers == None):
+            MplusBetweenIdentifiers = None
+        else:
+            MplusBetweenIdentifiers = []
+            idEquations = []
+            for t in betweenIdentifiers:
+                j = []
+                for i in t[0]:
+                    j.append(i.upper())
+                idEquations.append(j)
+            for t in range(len(idEquations)):
+                for i in range(len(idEquations[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (idEquations[t][i] == s):
+                            idEquations[t][i] = m
+                MplusBetweenIdentifiers.append([idEquations[t], betweenIdentifiers[t][1]])
 
-    # Convert useobservations to Mplus
-            if (useobservations == None):
-                MplusUseobservations = None
-            else:
-                MplusUseobservations = useobservations
-                for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                    z = re.compile(s, re.IGNORECASE)
-                    MplusUseobservations = z.sub(m, MplusUseobservations)
+# Convert useobservations to Mplus
+        if (useobservations == None):
+            MplusUseobservations = None
+        else:
+            MplusUseobservations = useobservations
+            for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                z = re.compile(s, re.IGNORECASE)
+                MplusUseobservations = z.sub(m, MplusUseobservations)
 
-    # Convert cluster variable to Mplus
-            if (cluster == None):
-                MplusCluster = None
-            else:
-                for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                    if (cluster.upper() == s):
-                        MplusCluster = m
+# Convert cluster variable to Mplus
+        if (cluster == None):
+            MplusCluster = None
+        else:
+            for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                if (cluster.upper() == s):
+                    MplusCluster = m
 
-    # Convert complex variable to Mplus
-            if (complex == None):
-                MplusComplex = None
-            else:
-                for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                    if (complex.upper() == s):
-                        MplusComplex = m
+# Convert complex variable to Mplus
+        if (complex == None):
+            MplusComplex = None
+        else:
+            for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                if (complex.upper() == s):
+                    MplusComplex = m
 
-    # Convert variable list arguments to Mplus
-            lvarList = [categorical, censored, count, nominal, 
+# Convert variable list arguments to Mplus
+        lvarList = [categorical, censored, count, nominal, 
 groupmean, grandmean, withinVar, betweenVar]
-            MplusCategorical = []
-            MplusCensored = []
-            MplusCount = []
-            MplusNominal = []
-            MplusGroupmean = []
-            MplusGrandmean = []
-            MplusWithinVar = []
-            MplusBetweenVar = []
-            lvarMplusList = [MplusCategorical, MplusCensored,
-    MplusCount, MplusNominal, MplusGroupmean, MplusGrandmean,
+        MplusCategorical = []
+        MplusCensored = []
+        MplusCount = []
+        MplusNominal = []
+        MplusGroupmean = []
+        MplusGrandmean = []
+        MplusWithinVar = []
+        MplusBetweenVar = []
+        lvarMplusList = [MplusCategorical, MplusCensored,
+MplusCount, MplusNominal, MplusGroupmean, MplusGrandmean,
 MplusWithinVar, MplusBetweenVar]
-            for t in range(len(lvarList)):
-                if (lvarList[t] == None):
-                    lvarMplusList[t] = None
-                else:
-                    for i in lvarList[t]:
-                        lvarMplusList[t].append(i.upper())
-                    for i in range(len(lvarMplusList[t])):
-                        for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                            if (lvarMplusList[t][i] == s):
-                                lvarMplusList[t][i] = m
-
-    # Convert weight variable to Mplus
-            if (weight == None):
-                MplusWeight = None
+        for t in range(len(lvarList)):
+            if (lvarList[t] == None):
+                lvarMplusList[t] = None
             else:
-                for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                    if (weight.upper() == s):
-                        MplusWeight = m
+                for i in lvarList[t]:
+                    lvarMplusList[t].append(i.upper())
+                for i in range(len(lvarMplusList[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (lvarMplusList[t][i] == s):
+                            lvarMplusList[t][i] = m
 
-    # Create input program
-            pathProgram = MplusPAprogram()
-            pathProgram.setTitle("Created by MplusPathAnalysis")
-            pathProgram.setData(dataname)
-            pathProgram.setVariable(MplusVariables, MplusWithinLatent, 
-    MplusWithinModel, MplusWithinVar, slopeVars,
-    MplusBetweenLatent, MplusBetweenModel, 
-    MplusBetweenVar, MplusUseobservations, MplusCategorical, MplusCensored, 
-    MplusCount, MplusNominal, MplusCluster, MplusComplex, MplusWeight)
-            pathProgram.setDefine(MplusGroupmean, MplusGrandmean)
-            pathProgram.setAnalysis(MplusCluster, MplusComplex, MplusWithinSlopes)
-            pathProgram.setModel(MplusWithinLatent, MplusWithinModel, MplusWithinCovar, 
+# Convert weight variable to Mplus
+        if (weight == None):
+            MplusWeight = None
+        else:
+            for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                if (weight.upper() == s):
+                    MplusWeight = m
+
+# Create input program
+        pathProgram = MplusPAprogram()
+        pathProgram.setTitle("Created by MplusPathAnalysis")
+        pathProgram.setData(dataname)
+        pathProgram.setVariable(MplusVariables, MplusWithinLatent, 
+MplusWithinModel, MplusWithinVar, slopeVars,
+MplusBetweenLatent, MplusBetweenModel, 
+MplusBetweenVar, MplusUseobservations, MplusCategorical, MplusCensored, 
+MplusCount, MplusNominal, MplusCluster, MplusComplex, MplusWeight)
+        pathProgram.setDefine(MplusGroupmean, MplusGrandmean)
+        pathProgram.setAnalysis(MplusCluster, MplusComplex, MplusWithinSlopes)
+        pathProgram.setModel(MplusWithinLatent, MplusWithinModel, MplusWithinCovar, 
 MplusWithinIdentifiers, withinCovEndo, withinCovExo, MplusWithinSlopes, 
 MplusBetweenLatent, MplusBetweenModel, MplusBetweenCovar, MplusBetweenIdentifiers, 
 betweenCovEndo, betweenCovExo,wald)
-            pathProgram.setOutput(MplusComplex, miThreshold)
-            pathProgram.write(outdir + fname + ".inp")
+        pathProgram.setOutput(MplusComplex, miThreshold)
+        pathProgram.write(outdir + fname + ".inp")
 
 # Add latent variables to SPSSvariables lists
         if (withinLatent != None):
@@ -2068,5 +2068,5 @@ datasetIntercepts, datasetVariances, datasetResidualV, datasetLabels)
     titleToPane()
 end program python.
 set printback = on.
-COMMENT BOOKMARK;LINE_NUM=1509;ID=2.
-COMMENT BOOKMARK;LINE_NUM=1658;ID=1.
+COMMENT BOOKMARK;LINE_NUM=1510;ID=2.
+COMMENT BOOKMARK;LINE_NUM=1659;ID=1.
