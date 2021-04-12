@@ -8,12 +8,13 @@
 * that will perform the path analysis in Mplus, then loads the important
 * parts of the Mplus output into the SPSS output window.
 
-**** Usage: MplusTwoLevel(inpfile, runModel, viewOutput, suppressSPSS,
-withinLatent, withinModel, withinVar, withinCovar, 
-withinCovEndo, withinCovExo, withinIdentifiers, withinSlopes,
-betweenLatent, betweenModel, betweenVar, betweenCovar,
-betweenCovEndo, betweenCovExo, betweenIdentifiers,
-useobservations, wald,
+**** Usage: MplusTwoLevel(inpfile, modellabel, runModel, viewOutput, suppressSPSS,
+withinLatent, withinLatentFixed, withinModel, withinMeans, withinVar, withinCovar, 
+withinCovEndo, withinCovExo, withinIdentifiers, withinMeanIdentifiers, withinSlopes,
+betweenLatent, betweenLatentFixed, betweenModel, betweenMeans, betweenVar, betweenCovar,
+betweenCovEndo, betweenCovExo, MLR,
+betweenIdentifiers, betweenMeanIdentifiers,
+useobservations, wald, constraint,
 categorical, censored, count, nominal, groupmean, grandmean,
 cluster, complex, weight, 
 datasetName, datasetMeans, datasetIntercepts, datasetVariances, 
@@ -22,6 +23,8 @@ datasetResidualV, datasetLabels, waittime)
 * Mplus input file to be created by the program. This filename must end with
 * .inp . The data file will automatically be saved to the same directory. This
 * argument is required.
+**** "modellabel" is a string that indicates what label should be added to the output at the
+* top of your model. If this is not specified, the label defaults to "MplusTwoLevel"
 **** "runModel" is a boolean argument indicating whether or not you want
 * the program to actually run the program it creates based on the model
 * you define. You may choose to not run the model when you 
@@ -49,12 +52,21 @@ datasetResidualV, datasetLabels, waittime)
 * the latent variable and the remaining elements are the names of the observed
 * variables that load on that latent variable. You then combine these individual
 * latent variable lists into a larger list identifying the full measurement model.
+**** "withinLatentFixed" is a list of lists identifying any values of latent variable links 
+* that are fixed to constant values. Each entry in this list pairs a within latent 
+* coefficient with its constant value. The coefficients part must 
+* specifically match an element of
+* the withinLatent statement. To do this, you may need to separate the 
+* observed values for a single latent variable into different lists. This defaults to None, 
+* which does not assign any fixed latent coefficients. 
 **** "withinModel" is a list of lists identifying the equations in the within-cluster part
 * of your model.  First, you create a set of lists that each have the outcome as
 * the first element and then have the predictors as the following elements.
 * Then you combine these individual equation lists into a larger list identifying 
 * the entire within model. All variables included in the within model have to
 * have variability within clusters.
+**** "withinMeans" is a list of variables indicating which means you want 
+* estimated in the within model. 
 **** "withinVar" is a list of strings identifying variables that are to be treated
 * as only having within-cluster variability. Note that you can include variables
 * in the within model even if you do not include them in this command, in
@@ -92,10 +104,16 @@ datasetResidualV, datasetLabels, waittime)
 * By default, the value for corrExo is True.
 **** "withinIdentifiers" is an optional argument that provides a list of lists pairing 
 * within-cluster coefficients with identifiers that will be used as part of a 
-* Wald Z test. The coefficients part must specifically match an element of
+* Wald Z test or a model constraint calculation. The coefficients part must 
+* specifically match an element of
 * the withinModel statement. To do this, you may need to separate the 
 * predictors for a single outcome into different lists. This defaults to None, 
 * which does not assign any identifiers. 
+**** "withinMeanIdentifiers" is an optional argument that provides a list of lists
+* pairing means from the within model with identifiers that will be used as 
+* part of a Wald Z test,
+* a Model Constraint calculation, or a model with parameters forced to be equal.
+* This defaults to None, which does not assign any identifiers.
 **** "withinSlopes" is an optional argument that provides a list of lists pairing
 * within-cluster coefficients with identifiers that will be used to test cross-level
 * interactions. The coefficients part must specifically match an element of 
@@ -112,6 +130,13 @@ datasetResidualV, datasetLabels, waittime)
 * the latent variable and the remaining elements are the names of the observed
 * variables that load on that latent variable. You then combine these individual
 * latent variable lists into a larger list identifying the full measurement model.
+**** "betweenLatentFixed" is a list of lists identifying any values of latent variable links 
+* that are fixed to constant values. Each entry in this list pairs a within latent 
+* coefficient with its constant value. The coefficients part must 
+* specifically match an element of
+* the betweenLatent statement. To do this, you may need to separate the 
+* observed values for a single latent variable into different lists. This defaults to None, 
+* which does not assign any fixed latent coefficients. 
 **** "betweenModel" is a list of lists identifying the equations in the between-cluster 
 * part of your model.  First, you create a set of lists that each have the outcome 
 * as the first element and then have the predictors as the following elements.
@@ -120,6 +145,8 @@ datasetResidualV, datasetLabels, waittime)
 * cluster as elements of the between model. In this case, the between-cluster
 * test will specifically identify how between-cluster variability in the predictor
 * relates to between-cluster variability in the outcome.
+**** "betweenMeans" is a list of variables indicating which means you want 
+* estimated in the between model. 
 **** "betweenVar" is a list of strings identifying variables that are to be treated
 * as only having between-cluster variability. Note that you can include variables
 * in the between model even if you do not include them in this command, in
@@ -155,12 +182,20 @@ datasetResidualV, datasetLabels, waittime)
 * will not, although you can still specify individual covariances between 
 * exogenous variables using the "betweenCovar" argument described above.
 * By default, the value for corrExo is True.
+**** "MLR" is a boolean indicating whether you would like use the MLR
+* (maximum likelihood with robust standard errors) estimator. By default,
+* the value for mlr is False, meaning that the analysis will be performed
+* using the standard maximum likelihood estimator.
 **** "betweenIdentifiers" is an optional argument provides a list of lists pairing 
 * between-cluster coefficients with identifiers that will be used as part of a 
 * Wald Z test. The coefficients part must specifically match one list  
 * in the betweenModel statement. To do this, you may need to separate the 
 * predictors for a single outcome into different lists. This defaults to None, 
 * which does not assign any identifiers. 
+**** "betweenMeanIdentifiers" is an optional argument that provides a list of lists
+* pairing means from the between model with identifiers that will be used as part of a Wald Z test,
+* a Model Constraint calculation, or a model with parameters forced to be equal.
+* This defaults to None, which does not assign any identifiers.
 **** "wald" is an optional argument that identifies a list of constraints that
 * will be tested using a Wald Z test. The constraints will be definted using the
 * identifiers specified in the "identifiers" argument. This can be used 
@@ -168,6 +203,9 @@ datasetResidualV, datasetLabels, waittime)
 * can be used to test the equivalence of different coefficients. This argument 
 * defaults to None, which would indicate that you do not want to perform 
 * a Wald Z test.
+**** "constraint" is an optional argument that identifies a string
+* to be included in the Model Constraint section, allowing you to estimate
+* linear combinations of means and coefficients from your model. 
 **** "useobservations" is a string specifying a selection
 * criteriion that must be met for observations to be included in the 
 * analysis. This is an optional argument that defaults to None, indicating
@@ -195,7 +233,8 @@ datasetResidualV, datasetLabels, waittime)
 * This defaults to None, meaning that there is not a second cluster variable.
 **** "weight" is an optional argument that identifies a sample weight.
 * This defaults to None, which would indicate that there all observations
-* are given equal weight.
+* are given equal weight. If you use a weight, the analysis will automatically
+* use the MLR estimator.
 **** "datasetName" is an optional argument that identifies the name of
 * an SPSS dataset that should be used to record the coefficients.
 **** "datasetMeans" is an optional argument that determines whether
@@ -315,43 +354,6 @@ CO with IS). The three slopes for satisfaction are all allowed to freely covary.
 * All modification indices that are greater than 4 will be reported in 
 * the output. The program will wait 10 seconds after starting to 
 * run the Mplus program before it tries to read the results back into SPSS.
-
-************
-* Version History
-************
-* 2014-08-19 Created based on MplusPathAnalysis 2014-08-19.sps
-* 2014-08-21 Created .inp file
-* 2014-08-24 Separated between and within latent definitions
-* 2014-08-25 Read output file
-* 2014-08-26 Fixed latent names
-    Added level variable to dataset
-* 2014-08-28 Removed problematic reference to auxiliary variables
-* 2014-09-02 Renamed function
-    Fixed error when no latent variables
-* 2014-09-05 Added runModel and viewOutput arguments
-* 2015-01-19 Suppressed output
-* 2015-05-02 Added the ability to examine random slopes
-    Added toggle to suppress output
-* 2015-05-18 Corrected extraction of output file
-* 2018-03-04 When a variable is missing from the data set, that variable is printed
-    Replaced nonalphanumerics before checking for duplicate variable names
-* 2018-03-05 Added complex option
-    Required the identification of a cluster variable
-* 2018-04-12 Added groupmean and grandmean arguments
-* 2018-04-18 Fixed error when replacing variable names
-* 2018-04-18a Added titleToPane
-* 2018-04-18b Added miThreshold
-    Fixed coefficient dataset generation when no standardized output
-* 2018-04-19 Added datasetIntercepts
-* 2018-04-19a Added datasetResidualV
-* 2018-04-26 Skip standardized results if complex != None
-* 2018-04-28 Added datasetVariances
-* 2018-04-28a Consolidated getIntercepts, getVariances, and
-    getResidualV into getStats
-* 2018-04-28b Added datasetMeans
-* 2018-04-28c Corrected error where means are reported with 
-    intercepts
-* 2018-10-02 Still writes .inp file when runModel = False
 
 set printback = off.
 begin program python.
@@ -585,6 +587,7 @@ class MplusPAprogram:
         self.define = "DEFINE:\n"
         self.analysis = "ANALYSIS:\n"
         self.model = "MODEL:\n"
+        self.constraint = "MODEL CONSTRAINT:\n"        
         self.output = "OUTPUT:\n"
         self.savedata = "SAVEDATA:\n"
         self.plot = "PLOT:\n"
@@ -672,23 +675,29 @@ withinVar, betweenVar]
                 self.define += " (GRANDMEAN)"
             self.define += ";"
 
-    def setAnalysis(self, cluster, complex, MplusWithinSlopes):
+    def setAnalysis(self, cluster, complex, MplusWithinSlopes, MLR, weight):
         self.analysis += "type = twolevel"
         if (complex != None):
             self.analysis += " complex"
         if (MplusWithinSlopes != None):
             self.analysis += " random"
         self.analysis += ";"
+        if (weight != None or MLR == True):
+            self.analysis += "\nestimator = MLR;"
 
-    def setModel(self, MplusWithinLatent, MplusWithinModel, MplusWithinCovar, 
-MplusWithinIdentifiers, withinEndo, withinExo, MplusWithinSlopes, 
-MplusBetweenLatent, MplusBetweenModel, MplusBetweenCovar, 
-MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
 
-        def modelCode(label, latent, model, covar, identifiers, cEndo, cExo, slopes, slopeList,):
-          code = "%{0}%\n".format(label)
-          # Latent variable definitions
-          if (latent != None):
+    def setModel(self, MplusWithinLatent, MplusWithinLatentFixed, MplusWithinModel, 
+MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, MplusWithinMeanIdentifiers,
+withinEndo, withinExo, MplusWithinSlopes, 
+MplusBetweenLatent, MplusBetweenLatentFixed, MplusBetweenModel, MplusBetweenMeans,
+MplusBetweenCovar, MplusBetweenIdentifiers, MplusBetweenMeanIdentifiers,
+betweenEndo, betweenExo, wald):
+        
+        def modelCode(label, latent, latentFixed, model, means, covar, identifiers, meanIdentifiers,
+cEndo, cExo, slopes, slopeList,):
+            code = "%{0}%\n".format(label)
+            # Latent variable definitions
+            if (latent != None):
               for equation in latent:
                   curline = equation[0] + " by"
                   for var in equation[1:]:
@@ -697,10 +706,14 @@ MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
                           else:
                               code += curline + "\n"
                               curline = var
-                  code += curline + ";\n\n"
-
-          # Regression equations
-          if (model != None):
+                  if (latentFixed != None):
+                      for t in latentFixed:
+                          if (equation == t[0]):
+                              curline += "@" + str(t[1])
+                  code += curline + ";\n\n"                              
+            
+            # Regression equations
+            if (model != None):
               for equation in model:
                   curline = ""
                   if (slopes != None):
@@ -719,31 +732,41 @@ MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
                           if (equation == id[0]):
                               curline += " (" + id[1] + ")"
                   code += curline + ";\n"
-
-        # Getting lists of endogenous and exogenous variables
-              endo = []
-              for equation in model:
-                  if (equation[0] not in slopeList):
-                      endo.append(equation[0])
-              endo = list(set(endo))
-              exo = []
-              for equation in model:
-                  for var in equation:
-                      if (var not in endo and var not in exo and var not in slopeList):
-                          exo.append(var)
-
-        # Add defined covariances
-          if (covar != None):
+            
+            # Means               
+            if (means != None):
+                for m in means:
+                    curline = "[" + m + "]"
+                    if (meanIdentifiers != None):
+                        for id in meanIdentifiers:
+                             if (m == id[0]):
+                                curline += " (" + id[1] + ")"
+                    code += curline + ";\n"                  
+            
+            # Getting lists of endogenous and exogenous variables
+            endo = []
+            for equation in model:
+              if (equation[0] not in slopeList):
+                  endo.append(equation[0])
+            endo = list(set(endo))
+            exo = []
+            for equation in model:
+              for var in equation:
+                  if (var not in endo and var not in exo and var not in slopeList):
+                      exo.append(var)
+            
+            # Add defined covariances
+            if (covar != None):
               for t in range(len(covar)):
                   code += "\n" + covar[t][0] + " with "  
                   code += covar[t][1] + ";"
               code += "\n"
-
-        # Covariances for all exogenous variables
-          if (cExo == True and model != None):
-        # Estimate variances for exogenous variables so that they
-        # will be included in FIML
-        # Cannot include predictors that are also included as random slopes 
+            
+            # Covariances for all exogenous variables
+            if (cExo == True and model != None):
+            # Estimate variances for exogenous variables so that they
+            # will be included in FIML
+            # Cannot include predictors that are also included as random slopes 
               if (len(exo) > 0):
                   for var in exo:
                       code += "\n" + var + ";"
@@ -758,9 +781,9 @@ MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
                               code += curline + "\n"
                               curline = var
                       code += curline + ";"
-
-        # Covariances for all endgenous variables
-          if (cEndo == True and model != None):
+            
+            # Covariances for all endgenous variables
+            if (cEndo == True and model != None):
               if (len(endo) > 0):
                   code += "\n"
                   for t in range(len(endo)-1):
@@ -773,8 +796,8 @@ MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
                               code += curline + "\n"
                               curline = var
                       code += curline + ";"
-          code += "\n\n"
-          return(code)
+            code += "\n\n"
+            return(code)
 
 # List of variables involved in random slopes
         slopeList = []
@@ -783,12 +806,14 @@ MplusBetweenIdentifiers, betweenEndo, betweenExo, wald):
                 for var in slope[0]:
                     slopeList.append(var)
 # Within Model
-        withinCode = modelCode("WITHIN", MplusWithinLatent, MplusWithinModel, 
-MplusWithinCovar, MplusWithinIdentifiers, withinEndo, withinExo, MplusWithinSlopes, slopeList)
+        withinCode = modelCode("WITHIN", MplusWithinLatent, MplusWithinLatentFixed, 
+MplusWithinModel, MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, 
+MplusWithinMeanIdentifiers, withinEndo, withinExo, MplusWithinSlopes, slopeList)
         self.model += withinCode
 # Between Model
-        betweenCode = modelCode("BETWEEN", MplusBetweenLatent, MplusBetweenModel, 
-MplusBetweenCovar, MplusBetweenIdentifiers, betweenEndo, betweenExo, None, slopeList)
+        betweenCode = modelCode("BETWEEN", MplusBetweenLatent, MplusBetweenLatentFixed,
+MplusBetweenModel, MplusBetweenMeans, MplusBetweenCovar, MplusBetweenIdentifiers, 
+MplusBetweenMeanIdentifiers, betweenEndo, betweenExo, None, slopeList)
         self.model += betweenCode
 
 # Wald test
@@ -796,6 +821,10 @@ MplusBetweenCovar, MplusBetweenIdentifiers, betweenEndo, betweenExo, None, slope
             self.model += "\n\nMODEL TEST:"
             for line in wald:
                 self.model += "\n" + line + ";"
+
+    def setConstraint(self, constraintText):
+        if (constraintText != None):
+            self.constraint +="\n" + constraintText
 
     def setOutput(self, MplusComplex, miThreshold):
         if (MplusComplex == None):
@@ -805,7 +834,7 @@ MplusBetweenCovar, MplusBetweenIdentifiers, betweenEndo, betweenExo, None, slope
     def write(self, filename):
 # Write input file
         sectionList = [self.title, self.data, self.variable, self.define,
-self.analysis, self.model, self.output, self.savedata, 
+self.analysis, self.model, self.constraint, self.output, self.savedata, 
 self.plot, self.montecarlo]
         outfile = open(filename, "w")
         for sec in sectionList:
@@ -882,7 +911,8 @@ def getStats(outputBlock, startList, stopList):
     return stats
 
 class MplusTLoutput:
-    def __init__(self, filename, Mplus, SPSS, slopes, complex):
+    def __init__(self, modellabel, filename, Mplus, SPSS, slopes, complex):
+        self.label = modellabel
         infile = open(filename, "rb")
         fileText = infile.read()
         infile.close()
@@ -897,10 +927,12 @@ class MplusTLoutput:
         self.wcoefficients = None
         self.wcovariances = None
         self.wdescriptives = None
+        self.wnewParam = None
         self.bmeasurement = None
         self.bcoefficients = None
         self.bcovariances = None
         self.bdescriptives = None
+        self.bnewParam = None
         self.Zwmeasurement = None
         self.Zwcoefficients = None
         self.Zwcovariances = None
@@ -1015,11 +1047,23 @@ class MplusTLoutput:
         for t in range(start, len(outputList)):
             if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
 "MODEL COMMAND" in outputList[t] or
+    "New/Additional Parameters" in outputList[t] or 
 "Between Level" in outputList[t]):
                 end = t
                 break
         self.wdescriptives = "\n".join(outputList[start:end])
         self.wdescriptives = removeBlanks(self.wdescriptives)
+
+# Within New Parameters
+        start = end
+        if ("New/Additional Parameters" in outputList[start]):
+            for t in range(start, len(outputList)):
+                if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
+    "MODEL COMMAND" in outputList[t]):
+                    end = t
+                    break
+            self.wnewParam = "\n".join(outputList[start:end])
+            self.wnewParam = removeBlanks(self.wnewParam)        
 
 # Between Unstandardized measurement model
         start = end
@@ -1084,12 +1128,26 @@ re.search(r"\bVariances\b", outputList[t])):
         for t in range(start, len(outputList)):
             if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
 "MODEL COMMAND" in outputList[t] or
-"STANDARDIZED" in outputList[t]or
+"STANDARDIZED" in outputList[t] or
+    "New/Additional Parameters" in outputList[t] or
 "QUALITY OF NUMERICAL RESULTS" in outputList[t]):
                 end = t
                 break
         self.bdescriptives = "\n".join(outputList[start:end])
         self.bdescriptives = removeBlanks(self.bdescriptives)
+
+# Between New parameters
+        start = end
+        if ("New/Additional Parameters" in outputList[start]):
+            for t in range(start, len(outputList)):
+                if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
+"STANDARDIZED" in outputList[t] or
+    "MODEL COMMAND" in outputList[t] or
+"QUALITY OF NUMERICAL RESULTS" in outputList[t]):
+                    end = t
+                    break
+            self.bnewParam = "\n".join(outputList[start:end])
+            self.bnewParam = removeBlanks(self.bnewParam)        
 
         noStand = 0
         for t in range(len(outputList)):
@@ -1400,8 +1458,30 @@ in self.warnings)):
                     newMI.append(line)
             self.bmi = "\n".join(newMI)
 
+# New parameters section        
+        if (self.wnewParam != None):
+            newNP = ["New/Additional Within Parameters"]
+            npLines = self.wnewParam.split("\n")
+            for line in npLines[1:]:
+                if (len(line) > 1):
+                    firstWord = line.split()[0]
+                    line = line.replace(firstWord, firstWord + " "*15)
+                    newNP.append(line)
+            self.wnewParam = "\n".join(newNP)
+
+        if (self.bnewParam != None):
+            newNP = ["New/Additional Between Parameters"]
+            npLines = self.bnewParam.split("\n")
+            for line in npLines[1:]:
+                if (len(line) > 1):
+                    firstWord = line.split()[0]
+                    line = line.replace(firstWord, firstWord + " "*15)
+                    newNP.append(line)
+            self.bnewParam = "\n".join(newNP)                     
+
 # Print function
     def toSPSSoutput(self):
+        spss.Submit("title '" + self.label + "'.")
         spss.Submit("title 'SUMMARY'.")
         print self.summary
         spss.Submit("title 'WARNINGS'.")
@@ -1429,6 +1509,10 @@ in self.warnings)):
         print "Unstandardized Within"
         print self.header
         print self.wdescriptives
+        if (self.wnewParam != None):
+            spss.Submit("title 'WITHIN NEW/ADDITIONAL PARAMETERS'.")
+            print self.header
+            print self.wnewParam        
 # Unstandardized Between
         if (self.bmeasurement != None):
             spss.Submit("title 'UNSTANDARDIZED BETWEEN MEASUREMENT MODEL'.")
@@ -1449,7 +1533,11 @@ in self.warnings)):
         print "Unstandardized Between"
         print self.header
         print self.bdescriptives
-
+        if (self.bnewParam != None):
+            spss.Submit("title 'BETWEEN NEW/ADDITIONAL PARAMETERS'.")
+            print self.header
+            print self.bnewParam
+            
 # Standardized Within
         if (self.Zwmeasurement != None):
             spss.Submit("title 'STANDARDIZED WITHIN MEASUREMENT MODEL'.")
@@ -1657,12 +1745,16 @@ getStats(self.bdescriptives, start, stop)]
         spss.SetActive(datasetObj)
         spss.EndDataStep()
 
-def MplusTwoLevel(inpfile, runModel = True, viewOutput = True, suppressSPSS = False,
-withinLatent = None, withinModel = None, withinVar = None, withinCovar = None, 
-withinCovEndo = False, withinCovExo = True, withinIdentifiers = None, withinSlopes = None,
-betweenLatent = None, betweenModel = None, betweenVar = None, betweenCovar = None, 
-betweenCovEndo = False, betweenCovExo = True, betweenIdentifiers = None,
-wald = None, useobservations = None, 
+def MplusTwoLevel(inpfile, modellabel = "MplusTwoLevel", 
+runModel = True, viewOutput = True, suppressSPSS = False,
+withinLatent = None, withinLatentFixed = None, withinModel = None, withinMeans = None, 
+withinVar = None, withinCovar = None, withinCovEndo = False, withinCovExo = True, 
+withinIdentifiers = None, withinMeanIdentifiers = None, withinSlopes = None,
+betweenLatent = None, betweenLatentFixed = None, betweenModel = None, 
+betweenMeans = None, betweenVar = None, betweenCovar = None, 
+betweenCovEndo = False, betweenCovExo = True, MLR = False,
+betweenIdentifiers = None, betweenMeanIdentifiers = None,
+wald = None, constraint = None, useobservations = None, 
 categorical = None, censored = None, count = None, nominal = None,
 groupmean = None, grandmean = None,
 cluster = None, complex = None, weight = None, 
@@ -1785,7 +1877,8 @@ and var.upper() not in withinLatentVars):
             for var in equation:
                 if (var.upper() not in SPSSvariablesCaps 
 and var.upper() not in slopeVars
-and var.upper() not in betweenLatentVars):
+and var.upper() not in betweenLatentVars
+and var.upper() not in withinLatentVars):
                     variableError = 1
                     print "Missing " + var
         if (variableError == 1):
@@ -1817,7 +1910,25 @@ and var.upper() not in betweenLatentVars):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
                         if (MplusWithinLatent[t][i] == s):
                             MplusWithinLatent[t][i] = m
-
+                            
+# Convert withinLatentFixed to Mplus
+        if (withinLatentFixed == None):
+            MplusWithinLatentFixed = None
+        else:
+            MplusWithinLatentFixed = []
+            fixedEquations = []
+            for t in withinLatentFixed:
+                j = []
+                for i in t[0]:  # t[0] is the equation, t[1] is the fixed value
+                    j.append(i.upper())
+                fixedEquations.append(j) # appending the upper-case version of the equation
+            for t in range(len(fixedEquations)):
+                for i in range (len(fixedEquations[t])):
+                    for s,m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (fixedEquations[t] [i] == s ):
+                            fixedEquations[t] [i] = m
+                MplusWithinLatentFixed.append([fixedEquations[t], withinLatentFixed[t] [1] ])
+                            
 # Define between latent variables using Mplus variables
         if (betweenLatent == None):
             MplusBetweenLatent = None
@@ -1830,6 +1941,24 @@ and var.upper() not in betweenLatentVars):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
                         if (MplusBetweenLatent[t][i] == s):
                             MplusBetweenLatent[t][i] = m
+
+# Convert betweenLatentFixed to Mplus
+        if (betweenLatentFixed == None):
+            MplusBetweenLatentFixed = None
+        else:
+            MplusBetweenLatentFixed = []
+            fixedEquations = []
+            for t in betweenLatentFixed:
+                j = []
+                for i in t[0]:  # t[0] is the equation, t[1] is the fixed value
+                    j.append(i.upper())
+                fixedEquations.append(j) # appending the upper-case version of the equation
+            for t in range(len(fixedEquations)):
+                for i in range (len(fixedEquations[t])):
+                    for s,m in zip(SPSSvariablesCaps, MplusVariables):
+                        if (fixedEquations[t] [i] == s ):
+                            fixedEquations[t] [i] = m
+                MplusBetweenLatentFixed.append([fixedEquations[t], betweenLatentFixed[t] [1] ])
 
 # Define withinModel using Mplus variables
         if (withinModel == None):
@@ -1874,6 +2003,20 @@ and var.upper() not in betweenLatentVars):
                         if (idEquations[t][i] == s):
                             idEquations[t][i] = m
                 MplusWithinIdentifiers.append([idEquations[t], withinIdentifiers[t][1]])
+
+# Convert within mean identifiers to Mplus
+        if (withinMeanIdentifiers == None):
+            MplusWithinMeanIdentifiers = None
+        else:
+            MplusWithinMeanIdentifiers = []
+            idMeans = []
+            for t in withinMeanIdentifiers:
+                idMeans.append(t[0].upper())
+            for t in range(len(idMeans)):
+                for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                    if (idMeans[t] == s):
+                        idMeans[t] = m
+                MplusWithinMeanIdentifiers.append([idMeans[t], withinMeanIdentifiers[t][1]])                
 
 # Convert withinSlopes to Mplus
         if (withinSlopes == None):
@@ -1937,6 +2080,20 @@ and var.upper() not in betweenLatentVars):
                             idEquations[t][i] = m
                 MplusBetweenIdentifiers.append([idEquations[t], betweenIdentifiers[t][1]])
 
+# Convert between mean identifiers to Mplus
+        if (betweenMeanIdentifiers == None):
+            MplusBetweenMeanIdentifiers = None
+        else:
+            MplusBetweenMeanIdentifiers = []
+            idMeans = []
+            for t in betweenMeanIdentifiers:
+                idMeans.append(t[0].upper())
+            for t in range(len(idMeans)):
+                for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                    if (idMeans[t] == s):
+                        idMeans[t] = m
+                MplusBetweenMeanIdentifiers.append([idMeans[t], betweenMeanIdentifiers[t][1]])  
+
 # Convert useobservations to Mplus
         if (useobservations == None):
             MplusUseobservations = None
@@ -1964,7 +2121,7 @@ and var.upper() not in betweenLatentVars):
 
 # Convert variable list arguments to Mplus
         lvarList = [categorical, censored, count, nominal, 
-groupmean, grandmean, withinVar, betweenVar]
+groupmean, grandmean, withinVar, withinMeans, betweenVar, betweenMeans]
         MplusCategorical = []
         MplusCensored = []
         MplusCount = []
@@ -1972,10 +2129,12 @@ groupmean, grandmean, withinVar, betweenVar]
         MplusGroupmean = []
         MplusGrandmean = []
         MplusWithinVar = []
+        MplusWithinMeans = []
         MplusBetweenVar = []
+        MplusBetweenMeans = []
         lvarMplusList = [MplusCategorical, MplusCensored,
 MplusCount, MplusNominal, MplusGroupmean, MplusGrandmean,
-MplusWithinVar, MplusBetweenVar]
+MplusWithinVar, MplusWithinMeans, MplusBetweenVar, MplusBetweenMeans]
         for t in range(len(lvarList)):
             if (lvarList[t] == None):
                 lvarMplusList[t] = None
@@ -2005,31 +2164,39 @@ MplusBetweenLatent, MplusBetweenModel,
 MplusBetweenVar, MplusUseobservations, MplusCategorical, MplusCensored, 
 MplusCount, MplusNominal, MplusCluster, MplusComplex, MplusWeight)
         pathProgram.setDefine(MplusGroupmean, MplusGrandmean)
-        pathProgram.setAnalysis(MplusCluster, MplusComplex, MplusWithinSlopes)
-        pathProgram.setModel(MplusWithinLatent, MplusWithinModel, MplusWithinCovar, 
-MplusWithinIdentifiers, withinCovEndo, withinCovExo, MplusWithinSlopes, 
-MplusBetweenLatent, MplusBetweenModel, MplusBetweenCovar, MplusBetweenIdentifiers, 
+        pathProgram.setAnalysis(MplusCluster, MplusComplex, MplusWithinSlopes, MLR,
+MplusWeight)
+        pathProgram.setModel(MplusWithinLatent, MplusWithinLatentFixed, MplusWithinModel, 
+MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, MplusWithinMeanIdentifiers,
+withinCovEndo, withinCovExo, MplusWithinSlopes, 
+MplusBetweenLatent, MplusBetweenLatentFixed, MplusBetweenModel, MplusBetweenMeans,
+MplusBetweenCovar, MplusBetweenIdentifiers, MplusBetweenMeanIdentifiers,
 betweenCovEndo, betweenCovExo,wald)
+        pathProgram.setConstraint(constraint)    
         pathProgram.setOutput(MplusComplex, miThreshold)
         pathProgram.write(outdir + fname + ".inp")
 
 # Add latent variables to SPSSvariables lists
         if (withinLatent != None):
             for equation in withinLatent:
-                SPSSvariables.append(equation[0])
-                SPSSvariablesCaps.append(equation[0].upper())
+                if (equation[0].upper() not in SPSSvariablesCaps):
+                    SPSSvariables.append(equation[0])
+                    SPSSvariablesCaps.append(equation[0].upper())
         if (betweenLatent != None):
             for equation in betweenLatent:
-                SPSSvariables.append(equation[0])
-                SPSSvariablesCaps.append(equation[0].upper())
+                if (equation[0].upper() not in SPSSvariablesCaps):            
+                    SPSSvariables.append(equation[0])
+                    SPSSvariablesCaps.append(equation[0].upper())
 
 # Add latent variables to MplusVariable list
         if (withinLatent != None):
-    	       for equation in withinLatent:
-                MplusVariables.append(equation[0].upper())
+            for equation in withinLatent:
+                if (equation[0].upper() not in MplusVariables):            
+                    MplusVariables.append(equation[0].upper())
         if (betweenLatent != None):
             for equation in betweenLatent:
-                MplusVariables.append(equation[0].upper())
+                if (equation[0].upper() not in MplusVariables):            
+                    MplusVariables.append(equation[0].upper())
 
 # Run input program
         if (runModel == True):
@@ -2043,7 +2210,7 @@ betweenCovEndo, betweenCovExo,wald)
 
 # Parse output
         if (viewOutput == True):
-            pathOutput = MplusTLoutput(outdir + fname + ".out", 
+            pathOutput = MplusTLoutput(modellabel, outdir + fname + ".out", 
     MplusVariables, SPSSvariables, slopeVars, complex)
             pathOutput.toSPSSoutput()
 
@@ -2068,5 +2235,51 @@ datasetIntercepts, datasetVariances, datasetResidualV, datasetLabels)
     titleToPane()
 end program python.
 set printback = on.
-COMMENT BOOKMARK;LINE_NUM=1510;ID=2.
-COMMENT BOOKMARK;LINE_NUM=1659;ID=1.
+
+************
+* Version History
+************
+* 2014-08-19 Created based on MplusPathAnalysis 2014-08-19.sps
+* 2014-08-21 Created .inp file
+* 2014-08-24 Separated between and within latent definitions
+* 2014-08-25 Read output file
+* 2014-08-26 Fixed latent names
+    Added level variable to dataset
+* 2014-08-28 Removed problematic reference to auxiliary variables
+* 2014-09-02 Renamed function
+    Fixed error when no latent variables
+* 2014-09-05 Added runModel and viewOutput arguments
+* 2015-01-19 Suppressed output
+* 2015-05-02 Added the ability to examine random slopes
+    Added toggle to suppress output
+* 2015-05-18 Corrected extraction of output file
+* 2018-03-04 When a variable is missing from the data set, that variable is printed
+    Replaced nonalphanumerics before checking for duplicate variable names
+* 2018-03-05 Added complex option
+    Required the identification of a cluster variable
+* 2018-04-12 Added groupmean and grandmean arguments
+* 2018-04-18 Fixed error when replacing variable names
+* 2018-04-18a Added titleToPane
+* 2018-04-18b Added miThreshold
+    Fixed coefficient dataset generation when no standardized output
+* 2018-04-19 Added datasetIntercepts
+* 2018-04-19a Added datasetResidualV
+* 2018-04-26 Skip standardized results if complex != None
+* 2018-04-28 Added datasetVariances
+* 2018-04-28a Consolidated getIntercepts, getVariances, and
+    getResidualV into getStats
+* 2018-04-28b Added datasetMeans
+* 2018-04-28c Corrected error where means are reported with 
+    intercepts
+* 2018-10-02 Still writes .inp file when runModel = False
+* 2021-04-05 Added MLR command
+* 2021-04-05a Added constraint option
+* 2021-04-05b Added mean and meanidentifier commands
+* 2021-04-08 Added withinLatentFixed and betweenLatentFixed
+* 2021-04-08a Made sure each latent variable is only added to variable lists once
+* 2021-04-09 Allowed within latent variables to be used at the between level
+* 2021-04-09a Added label to output.
+COMMENT BOOKMARK;LINE_NUM=912;ID=2.
+COMMENT BOOKMARK;LINE_NUM=1481;ID=5.
+COMMENT BOOKMARK;LINE_NUM=1808;ID=4.
+COMMENT BOOKMARK;LINE_NUM=2156;ID=1.
