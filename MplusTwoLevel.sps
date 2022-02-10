@@ -12,9 +12,10 @@
 withinLatent, withinLatentFixed, withinModel, withinMeans, withinVar, withinCovar, 
 withinCovEndo, withinCovExo, withinIdentifiers, withinMeanIdentifiers, withinSlopes,
 betweenLatent, betweenLatentFixed, betweenModel, betweenMeans, betweenVar, betweenCovar,
-betweenCovEndo, betweenCovExo, MLR,
+betweenCovEndo, betweenCovExo, 
 betweenIdentifiers, betweenMeanIdentifiers,
-useobservations, wald, constraint,
+estimator, useobservations, wald, constraint,
+montecarlo, bootstrap, repse,
 categorical, censored, count, nominal, groupmean, grandmean,
 cluster, complex, weight, 
 datasetName, datasetMeans, datasetIntercepts, datasetVariances, 
@@ -182,10 +183,6 @@ datasetResidualV, datasetLabels, waittime)
 * will not, although you can still specify individual covariances between 
 * exogenous variables using the "betweenCovar" argument described above.
 * By default, the value for corrExo is True.
-**** "MLR" is a boolean indicating whether you would like use the MLR
-* (maximum likelihood with robust standard errors) estimator. By default,
-* the value for mlr is False, meaning that the analysis will be performed
-* using the standard maximum likelihood estimator.
 **** "betweenIdentifiers" is an optional argument provides a list of lists pairing 
 * between-cluster coefficients with identifiers that will be used as part of a 
 * Wald Z test. The coefficients part must specifically match one list  
@@ -196,6 +193,15 @@ datasetResidualV, datasetLabels, waittime)
 * pairing means from the between model with identifiers that will be used as part of a Wald Z test,
 * a Model Constraint calculation, or a model with parameters forced to be equal.
 * This defaults to None, which does not assign any identifiers.
+**** "estimator" is a string specifying the estimation method to be used. 
+* Valid values are ML, MLM, MLMV, MLR, MLF, MUML, WLS, WLSM,
+* WLSMV, ULS, ULSMV, GLS, and BAYES. If this argument is omitted,
+* the Mplus default will be used, which depends on the data and model
+* types you are using (most commonly MLR).
+**** "useobservations" is a string specifying a selection
+* criteriion that must be met for observations to be included in the 
+* analysis. This is an optional argument that defaults to None, indicating
+* that all observations are to be included in the analysis.
 **** "wald" is an optional argument that identifies a list of constraints that
 * will be tested using a Wald Z test. The constraints will be definted using the
 * identifiers specified in the "identifiers" argument. This can be used 
@@ -206,10 +212,22 @@ datasetResidualV, datasetLabels, waittime)
 **** "constraint" is an optional argument that identifies a string
 * to be included in the Model Constraint section, allowing you to estimate
 * linear combinations of means and coefficients from your model. 
-**** "useobservations" is a string specifying a selection
-* criteriion that must be met for observations to be included in the 
-* analysis. This is an optional argument that defaults to None, indicating
-* that all observations are to be included in the analysis.
+**** "montecarlo" is an optional argument that allows you to specify Monte
+* Carlo integration. If you omit this argument, Mplus will not use Monte Carlo
+* integration. If you want to use Monte Carlo integration, you set this argument
+* to a number that is the number of integration points you want to use. The
+* default used by Mplus is 2000.
+**** "bootstrap" is an optional argument that allows you to request bootstrap
+* confidence intervals. If you want to obtain bootstrap CIs, you set this
+* argument equal to the number of bootstrap samples you want to use. This
+* number should be at least 1000, but can go notably higher. Researchers
+* typically use 5000, but it's not unheard of to use 20000 or more.
+* NOTE: Bootstrapping is not currently implemented for two-level models.
+* The authors have indicated that they will be implementing it soon, 
+* but right now models with bootstrapping will not work.
+**** "repse" is an optional argument that allows you to identify the resampling
+* method used to create replicate weights. Valid options are bootstrap, 
+* jackknife, jackknife1, jackknife2, brr, and fay(#)
 **** "categorical" is an optional argument that identifies a list of variables
 * that should be treated as categorical by Mplus. Note that what Mplus
 * calls categorical is typically called "ordinal" in other places. Use the
@@ -233,8 +251,8 @@ datasetResidualV, datasetLabels, waittime)
 * This defaults to None, meaning that there is not a second cluster variable.
 **** "weight" is an optional argument that identifies a sample weight.
 * This defaults to None, which would indicate that there all observations
-* are given equal weight. If you use a weight, the analysis will automatically
-* use the MLR estimator.
+* are given equal weight. Note that not all estimators can make use of
+* weights. MLR is typically a good option.
 **** "datasetName" is an optional argument that identifies the name of
 * an SPSS dataset that should be used to record the coefficients.
 **** "datasetMeans" is an optional argument that determines whether
@@ -675,16 +693,21 @@ withinVar, betweenVar]
                 self.define += " (GRANDMEAN)"
             self.define += ";"
 
-    def setAnalysis(self, cluster, complex, MplusWithinSlopes, MLR, weight):
+    def setAnalysis(self, cluster, complex, MplusWithinSlopes, estimator, weight, mc, boot, repse):
         self.analysis += "type = twolevel"
         if (complex != None):
             self.analysis += " complex"
         if (MplusWithinSlopes != None):
             self.analysis += " random"
         self.analysis += ";"
-        if (weight != None or MLR == True):
-            self.analysis += "\nestimator = MLR;"
-
+        if (estimator != None):
+            self.analysis += "\nestimator = {0};".format(estimator)
+        if (mc != None):
+            self.analysis += "\nintegration = montecarlo({0});".format(mc)
+        if (boot != None):
+            self.analysis += "\nbootstrap = {0};".format(boot)
+        if (repse != None):
+            self.analysis += "\nrepse = {0};".format(repse)
 
     def setModel(self, MplusWithinLatent, MplusWithinLatentFixed, MplusWithinModel, 
 MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, MplusWithinMeanIdentifiers,
@@ -826,9 +849,11 @@ MplusBetweenMeanIdentifiers, betweenEndo, betweenExo, None, slopeList)
         if (constraintText != None):
             self.constraint +="\n" + constraintText
 
-    def setOutput(self, MplusComplex, miThreshold):
+    def setOutput(self, MplusComplex, miThreshold, boot):
         if (MplusComplex == None):
             self.output += "stdyx;"
+        if (boot != None):
+            self.output += "\ncinterval(bcbootstrap);"
         self.output += "\nmodindices({0});".format(miThreshold)
 
     def write(self, filename):
@@ -880,7 +905,8 @@ def getCoefficients(outputBlock):
                     line = [outcome]
                     line.extend(values2[0:1])
                     for j in values2[1:]:
-                        line.append(float(j))
+                        if (j != "*"):
+                            line.append(float(j))
                     coefficients.append(line)
     return coefficients
 
@@ -911,14 +937,18 @@ def getStats(outputBlock, startList, stopList):
     return stats
 
 class MplusTLoutput:
-    def __init__(self, modellabel, filename, Mplus, SPSS, slopes, complex):
+    def __init__(self, modellabel, filename, Mplus, SPSS, slopes, complex, estimator):
         self.label = modellabel
         infile = open(filename, "rb")
         fileText = infile.read()
         infile.close()
         outputList = fileText.split("\n")
 
-        self.header = """                                                                   Two-Tailed 
+        if (estimator == "BAYES"):
+            self.header = """                                               Posterior  One-Tailed         95% C.I.
+                                   Estimate       S.D.      P-Value   Lower 2.5%  Upper 2.5%  Sig"""
+        else:
+            self.header = """                                                                   Two-Tailed 
                                    Estimate       S.E.  Est./S.E.    P-Value"""
         self.summary = None
         self.warnings = None
@@ -927,12 +957,11 @@ class MplusTLoutput:
         self.wcoefficients = None
         self.wcovariances = None
         self.wdescriptives = None
-        self.wnewParam = None
         self.bmeasurement = None
         self.bcoefficients = None
         self.bcovariances = None
         self.bdescriptives = None
-        self.bnewParam = None
+        self.newParam = None
         self.Zwmeasurement = None
         self.Zwcoefficients = None
         self.Zwcovariances = None
@@ -1013,6 +1042,8 @@ class MplusTLoutput:
                 break
             if (re.search(r"\bBetween Level\b", outputList[t])):
                 break
+            if (re.search(r"\bSTANDARDIZED\b", outputList[t])):
+                break
         if (secexists == 1):
             for t in range(start, len(outputList)):
                 if (re.search(r"\bWITH\b", outputList[t]) or
@@ -1033,6 +1064,8 @@ class MplusTLoutput:
                 break
             if (re.search(r"\bBetween Level\b", outputList[t])):
                 break
+            if (re.search(r"\bSTANDARDIZED\b", outputList[t])):
+                break                
         if (secexists == 1):
             for t in range(start, len(outputList)):
                 if (re.search(r"\bMeans\b", outputList[t]) or 
@@ -1053,17 +1086,6 @@ class MplusTLoutput:
                 break
         self.wdescriptives = "\n".join(outputList[start:end])
         self.wdescriptives = removeBlanks(self.wdescriptives)
-
-# Within New Parameters
-        start = end
-        if ("New/Additional Parameters" in outputList[start]):
-            for t in range(start, len(outputList)):
-                if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
-    "MODEL COMMAND" in outputList[t]):
-                    end = t
-                    break
-            self.wnewParam = "\n".join(outputList[start:end])
-            self.wnewParam = removeBlanks(self.wnewParam)        
 
 # Between Unstandardized measurement model
         start = end
@@ -1094,6 +1116,8 @@ class MplusTLoutput:
                 start = t
                 secexists = 1
                 break
+            if (re.search(r"\bSTANDARDIZED\b", outputList[t])):
+                break                
         if (secexists == 1):
             for t in range(start, len(outputList)):
                 if (re.search(r"\bWITH\b", outputList[t]) or
@@ -1114,6 +1138,8 @@ re.search(r"\bVariances\b", outputList[t])):
                 start = t
                 secexists = 1
                 break
+            if (re.search(r"\bSTANDARDIZED\b", outputList[t])):
+                break                
         if (secexists == 1):
             for t in range(start, len(outputList)):
                 if (re.search(r"\bMeans\b", outputList[t]) or 
@@ -1136,7 +1162,7 @@ re.search(r"\bVariances\b", outputList[t])):
         self.bdescriptives = "\n".join(outputList[start:end])
         self.bdescriptives = removeBlanks(self.bdescriptives)
 
-# Between New parameters
+# New/additional parameters
         start = end
         if ("New/Additional Parameters" in outputList[start]):
             for t in range(start, len(outputList)):
@@ -1146,8 +1172,8 @@ re.search(r"\bVariances\b", outputList[t])):
 "QUALITY OF NUMERICAL RESULTS" in outputList[t]):
                     end = t
                     break
-            self.bnewParam = "\n".join(outputList[start:end])
-            self.bnewParam = removeBlanks(self.bnewParam)        
+            self.newParam = "\n".join(outputList[start:end])
+            self.newParam = removeBlanks(self.newParam)        
 
         noStand = 0
         for t in range(len(outputList)):
@@ -1458,26 +1484,15 @@ in self.warnings)):
                     newMI.append(line)
             self.bmi = "\n".join(newMI)
 
-# New parameters section        
-        if (self.wnewParam != None):
-            newNP = ["New/Additional Within Parameters"]
-            npLines = self.wnewParam.split("\n")
+        if (self.newParam != None):
+            newNP = ["New/Additional Parameters"]
+            npLines = self.newParam.split("\n")
             for line in npLines[1:]:
                 if (len(line) > 1):
                     firstWord = line.split()[0]
                     line = line.replace(firstWord, firstWord + " "*15)
                     newNP.append(line)
-            self.wnewParam = "\n".join(newNP)
-
-        if (self.bnewParam != None):
-            newNP = ["New/Additional Between Parameters"]
-            npLines = self.bnewParam.split("\n")
-            for line in npLines[1:]:
-                if (len(line) > 1):
-                    firstWord = line.split()[0]
-                    line = line.replace(firstWord, firstWord + " "*15)
-                    newNP.append(line)
-            self.bnewParam = "\n".join(newNP)                     
+            self.newParam = "\n".join(newNP)                     
 
 # Print function
     def toSPSSoutput(self):
@@ -1509,10 +1524,6 @@ in self.warnings)):
         print "Unstandardized Within"
         print self.header
         print self.wdescriptives
-        if (self.wnewParam != None):
-            spss.Submit("title 'WITHIN NEW/ADDITIONAL PARAMETERS'.")
-            print self.header
-            print self.wnewParam        
 # Unstandardized Between
         if (self.bmeasurement != None):
             spss.Submit("title 'UNSTANDARDIZED BETWEEN MEASUREMENT MODEL'.")
@@ -1533,10 +1544,10 @@ in self.warnings)):
         print "Unstandardized Between"
         print self.header
         print self.bdescriptives
-        if (self.bnewParam != None):
-            spss.Submit("title 'BETWEEN NEW/ADDITIONAL PARAMETERS'.")
+        if (self.newParam != None):
+            spss.Submit("title 'NEW/ADDITIONAL PARAMETERS'.")
             print self.header
-            print self.bnewParam
+            print self.newParam
             
 # Standardized Within
         if (self.Zwmeasurement != None):
@@ -1597,7 +1608,7 @@ in self.warnings)):
 
 # Save coefficients to dataset
     def toSPSSdata(self, datasetName, datasetMeans, datasetIntercepts, 
-datasetVariances, datasetResidualV, labelList = []):
+datasetVariances, datasetResidualV, estimator, labelList = []):
 # Determine active data set so we can return to it when finished
         activeName = spss.ActiveDataset()
 # Set up data set if it doesn't already exist
@@ -1612,14 +1623,26 @@ omsid='Dataset Display', subtype='Datasets')
             datasetObj.varlist.append("wbLevel", 50)
             datasetObj.varlist.append("Outcome", 50)
             datasetObj.varlist.append("Predictor", 50)
-            datasetObj.varlist.append("b_Coefficient", 0)
-            datasetObj.varlist.append("b_SE", 0)
-            datasetObj.varlist.append("b_Ratio", 0)
-            datasetObj.varlist.append("b_p", 0)
-            datasetObj.varlist.append("beta_Coefficient", 0)
-            datasetObj.varlist.append("beta_SE", 0)
-            datasetObj.varlist.append("beta_Ratio", 0)
-            datasetObj.varlist.append("beta_p", 0)
+            if (estimator == "BAYES"):
+                datasetObj.varlist.append("b_Coefficient", 0)
+                datasetObj.varlist.append("b_PostSD", 0)
+                datasetObj.varlist.append("b_p", 0)
+                datasetObj.varlist.append("b_lower", 0)
+                datasetObj.varlist.append("b_upper", 0)
+                datasetObj.varlist.append("beta_Coefficient", 0)
+                datasetObj.varlist.append("beta_PostSD", 0)
+                datasetObj.varlist.append("beta_p", 0)
+                datasetObj.varlist.append("beta_lower", 0)
+                datasetObj.varlist.append("beta_upper", 0)                
+            else:
+                datasetObj.varlist.append("b_Coefficient", 0)
+                datasetObj.varlist.append("b_SE", 0)
+                datasetObj.varlist.append("b_Ratio", 0)
+                datasetObj.varlist.append("b_p", 0)
+                datasetObj.varlist.append("beta_Coefficient", 0)
+                datasetObj.varlist.append("beta_SE", 0)
+                datasetObj.varlist.append("beta_Ratio", 0)
+                datasetObj.varlist.append("beta_p", 0)
             spss.EndDataStep()
             submitstring = """dataset activate {0}.
 dataset name {1}.""".format(dsetname, datasetName)
@@ -1639,7 +1662,10 @@ dataset name {1}.""".format(dsetname, datasetName)
         spss.EndDataStep()
 
 # Set variables to f8.3
-        submitstring = "alter type b_Coefficient to beta_p (f8.3)."
+        if (estimator == "BAYES"):
+            submitstring = "alter type b_Coefficient to beta_upper (f8.3)."
+        else:
+            submitstring = "alter type b_Coefficient to beta_p (f8.3)."
         spss.Submit(submitstring)
 
 # Get coefficients
@@ -1752,9 +1778,11 @@ withinVar = None, withinCovar = None, withinCovEndo = False, withinCovExo = True
 withinIdentifiers = None, withinMeanIdentifiers = None, withinSlopes = None,
 betweenLatent = None, betweenLatentFixed = None, betweenModel = None, 
 betweenMeans = None, betweenVar = None, betweenCovar = None, 
-betweenCovEndo = False, betweenCovExo = True, MLR = False,
+betweenCovEndo = False, betweenCovExo = True, 
 betweenIdentifiers = None, betweenMeanIdentifiers = None,
-wald = None, constraint = None, useobservations = None, 
+estimator = None, useobservations = None, 
+wald = None, constraint = None, 
+montecarlo = None, bootstrap = None, repse = None,
 categorical = None, censored = None, count = None, nominal = None,
 groupmean = None, grandmean = None,
 cluster = None, complex = None, weight = None, 
@@ -1817,6 +1845,24 @@ datasetLabels = [], miThreshold = 10, waittime = 5):
     if (cluster == None):
         print ("Error: No cluster variable identified")
         error = 1
+    if (estimator != None):
+        estimator = estimator.upper()
+        if (estimator not in ["ML",
+"MLM",
+"MLMV",
+"MLR",
+"MLF",
+"MUML",
+"WLS",
+"WLSM",
+"WLSMV",
+"ULS",
+"ULSMV",
+"GLS",
+"BAYES"]):
+            print("Error: Estimator not valid")
+            error = 1
+        
     variableError = 0
     for var in withinLatentVars:
         if (var in SPSSvariablesCaps):
@@ -2164,8 +2210,8 @@ MplusBetweenLatent, MplusBetweenModel,
 MplusBetweenVar, MplusUseobservations, MplusCategorical, MplusCensored, 
 MplusCount, MplusNominal, MplusCluster, MplusComplex, MplusWeight)
         pathProgram.setDefine(MplusGroupmean, MplusGrandmean)
-        pathProgram.setAnalysis(MplusCluster, MplusComplex, MplusWithinSlopes, MLR,
-MplusWeight)
+        pathProgram.setAnalysis(MplusCluster, MplusComplex, MplusWithinSlopes, estimator,
+MplusWeight, montecarlo, bootstrap, repse)
         pathProgram.setModel(MplusWithinLatent, MplusWithinLatentFixed, MplusWithinModel, 
 MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, MplusWithinMeanIdentifiers,
 withinCovEndo, withinCovExo, MplusWithinSlopes, 
@@ -2173,7 +2219,7 @@ MplusBetweenLatent, MplusBetweenLatentFixed, MplusBetweenModel, MplusBetweenMean
 MplusBetweenCovar, MplusBetweenIdentifiers, MplusBetweenMeanIdentifiers,
 betweenCovEndo, betweenCovExo,wald)
         pathProgram.setConstraint(constraint)    
-        pathProgram.setOutput(MplusComplex, miThreshold)
+        pathProgram.setOutput(MplusComplex, miThreshold, bootstrap)
         pathProgram.write(outdir + fname + ".inp")
 
 # Add latent variables to SPSSvariables lists
@@ -2211,7 +2257,7 @@ betweenCovEndo, betweenCovExo,wald)
 # Parse output
         if (viewOutput == True):
             pathOutput = MplusTLoutput(modellabel, outdir + fname + ".out", 
-    MplusVariables, SPSSvariables, slopeVars, complex)
+    MplusVariables, SPSSvariables, slopeVars, complex, estimator)
             pathOutput.toSPSSoutput()
 
 # Redirect output
@@ -2224,7 +2270,8 @@ betweenCovEndo, betweenCovExo,wald)
     # Create coefficient dataset
             if (datasetName != None):
                 pathOutput.toSPSSdata(datasetName, datasetMeans, 
-datasetIntercepts, datasetVariances, datasetResidualV, datasetLabels)
+datasetIntercepts, datasetVariances, datasetResidualV, estimator,
+datasetLabels)
 
 # Restore output
             if (suppressSPSS == True):
@@ -2279,7 +2326,12 @@ set printback = on.
 * 2021-04-08a Made sure each latent variable is only added to variable lists once
 * 2021-04-09 Allowed within latent variables to be used at the between level
 * 2021-04-09a Added label to output.
-COMMENT BOOKMARK;LINE_NUM=912;ID=2.
-COMMENT BOOKMARK;LINE_NUM=1481;ID=5.
-COMMENT BOOKMARK;LINE_NUM=1808;ID=4.
-COMMENT BOOKMARK;LINE_NUM=2156;ID=1.
+* 2021-05-07 Added estimator command/dropped MLR
+* 2021-05-08 Added montecarlo, bootstrap, repse
+* 2021-05-09 Corrected section breaks when there are no regression coefs
+* 2021-05-09a Changed dataset values for Bayes estimation
+* 2021-05-10 Revised title for new/additional parameters
+COMMENT BOOKMARK;LINE_NUM=938;ID=2.
+COMMENT BOOKMARK;LINE_NUM=1034;ID=3.
+COMMENT BOOKMARK;LINE_NUM=1496;ID=5.
+COMMENT BOOKMARK;LINE_NUM=2202;ID=1.
