@@ -1,4 +1,4 @@
-* Encoding: UTF-8.
+﻿* Encoding: UTF-8.
 * Use Mplus to run a two level model from within SPSS
 * By Jamie DeCoster
 
@@ -14,12 +14,12 @@ withinCovEndo, withinCovExo, withinIdentifiers, withinMeanIdentifiers, withinSlo
 betweenLatent, betweenLatentFixed, betweenModel, betweenMeans, betweenVar, betweenCovar,
 betweenCovEndo, betweenCovExo, 
 betweenIdentifiers, betweenMeanIdentifiers,
-estimator, useobservations, wald, constraint,
+estimator, starts, useobservations, wald, constraint,
 montecarlo, bootstrap, repse,
 categorical, censored, count, nominal, groupmean, grandmean,
 cluster, complex, weight, 
 datasetName, datasetMeans, datasetIntercepts, datasetVariances, 
-datasetResidualV, datasetLabels, waittime)
+datasetResidualV, datasetLabels, processors, waittime)
 **** "inpfile" is a string identifying the directory and filename of
 * Mplus input file to be created by the program. This filename must end with
 * .inp . The data file will automatically be saved to the same directory. This
@@ -198,6 +198,9 @@ datasetResidualV, datasetLabels, waittime)
 * WLSMV, ULS, ULSMV, GLS, and BAYES. If this argument is omitted,
 * the Mplus default will be used, which depends on the data and model
 * types you are using (most commonly MLR).
+**** "starts" is number specifying the number of random starts to be used.
+* Omitting this value has Mplus use the default number of random starts,
+* which depends on the exact analysis you are doing.
 **** "useobservations" is a string specifying a selection
 * criteriion that must be met for observations to be included in the 
 * analysis. This is an optional argument that defaults to None, indicating
@@ -273,6 +276,10 @@ datasetResidualV, datasetLabels, waittime)
 **** "miThreshold" is an optional argument that identifies the
 * minimum chi-square change required for a modificiation index
 * to be reported. Omitting this argument uses a default of 10.
+**** "processors" is an optional argument that specifies how many logical processors 
+* Mplus should use when running the analysis. You should not specify more 
+* processors than are available in your machine. If this argument is omitted, Mplus will
+* use 1 processor. 
 **** "waittime" is an optional argument that specifies how many seconds
 * the program should wait after running the Mplus program before it 
 * tries to read the output file. This defaults to 5. You should be sure that
@@ -374,7 +381,7 @@ CO with IS). The three slopes for satisfaction are all allowed to freely covary.
 * run the Mplus program before it tries to read the results back into SPSS.
 
 set printback = off.
-begin program python.
+begin program python3.
 import spss, spssaux, os, sys, time, re, tempfile, SpssClient
 from subprocess import Popen, PIPE
 
@@ -386,9 +393,9 @@ def _titleToPane():
     filename = tempfile.mktemp() + ".txt"
     for index in range(outputItemList.Size()):
         outputItem = outputItemList.GetItemAt(index)
-        if outputItem.GetDescription() == u"Page Title":
+        if outputItem.GetDescription() == "Page Title":
             outputItem.ExportToDocument(filename, textFormat)
-            with open(filename) as f:
+            with open(filename, 'r', encoding='utf-8') as f:
                 outputItem.SetDescription(f.read().rstrip())
             os.remove(filename)
     return outputDoc
@@ -404,19 +411,19 @@ def titleToPane(spv=None):
         outputDoc = _titleToPane()
         if spv and outputDoc:
             outputDoc.SaveAs(spv)
-    except:
-        print "Error filling TITLE in Output Viewer [%s]" % sys.exc_info()[1]
+    except Exception as e:
+        print("Error filling TITLE in Output Viewer [{}]".format(e))
     finally:
         SpssClient.StopClient()
 
 def MplusSplit(splitstring, linelength):
     returnstring = ""
     curline = splitstring
-    while (len(curline) > linelength):
+    while len(curline) > linelength:
         splitloc = linelength
-        while (curline[splitloc] == " " or curline[splitloc-1] == " "):
-            splitloc = splitloc -1
-        returnstring = returnstring + curline[:splitloc] + "\n"
+        while curline[splitloc] == " " or curline[splitloc - 1] == " ":
+            splitloc -= 1
+        returnstring += curline[:splitloc] + "\n"
         curline = curline[splitloc:]
     returnstring += curline
     return returnstring
@@ -426,9 +433,9 @@ def SPSSspaceSplit(splitstring, linelength):
     returnstring = "'"
     curline = ""
     for word in stringwords:
-        if (len(word) > linelength):
+        if len(word) > linelength:
             break
-        if (len(word) + len(curline) < linelength - 1):
+        if len(word) + len(curline) < linelength - 1:
             curline += word + " "
         else:
             returnstring += curline + "' +\n'"
@@ -438,166 +445,167 @@ def SPSSspaceSplit(splitstring, linelength):
 
 def numericMissing(definition):
     for varnum in range(spss.GetVariableCount()):
-        if (spss.GetVariableType(varnum) == 0):
-      # for numeric variables
+        if spss.GetVariableType(varnum) == 0:
+            # for numeric variables
             submitstring = """
-missing values %s (%s).""" %(spss.GetVariableName(varnum), definition)
+missing values %s (%s).""" % (spss.GetVariableName(varnum), definition)
             spss.Submit(submitstring)
 
 def exportMplus(filepath):
-######
-# Get list of current variables in SPSS data set
-######
- SPSSvarlist = []
- for varnum in range(spss.GetVariableCount()):
-  SPSSvarlist.append(spss.GetVariableName(varnum))
+    ######
+    # Get list of current variables in SPSS data set
+    ######
+    SPSSvarlist = []
+    for varnum in range(spss.GetVariableCount()):
+        SPSSvarlist.append(spss.GetVariableName(varnum))
 
-##########
-# Replace non-alphanumeric characters with _ in the variable names
-##########
- nonalphanumeric = [".", "@", "#", "$"]
-	for t in range(spss.GetVariableCount()):
-		oldname = spss.GetVariableName(t)
-		newname = ""
-		for i in range(len(oldname)):
-			if(oldname[i] in nonalphanumeric):
-				newname = newname +"_"
-			else:
-				newname = newname+oldname[i]
-		for i in range(t):
-			compname = spss.GetVariableName(i)
-			if (newname.lower() == compname.lower()):
-				newname = "var" + "%05d" %(t+1)
-		if (oldname != newname):
-			submitstring = "rename variables (%s = %s)." %(oldname, newname)
-			spss.Submit(submitstring)
-#########
-# Rename variables with names > 8 characters
-#########
- for t in range(spss.GetVariableCount()):
-		if (len(spss.GetVariableName(t)) > 8):
-			name = spss.GetVariableName(t)[0:8]
-			for i in range(spss.GetVariableCount()):
-				compname = spss.GetVariableName(i)
-				if (name.lower() == compname.lower()):
-					name = "var" + "%05d" %(t+1)
-			submitstring = "rename variables (%s = %s)." %(spss.GetVariableName(t), name)
-			spss.Submit(submitstring)
+    ##########
+    # Replace non-alphanumeric characters with _ in the variable names
+    ##########
+    nonalphanumeric = [".", "@", "#", "$"]
+    for t in range(spss.GetVariableCount()):
+        oldname = spss.GetVariableName(t)
+        newname = ""
+        for i in range(len(oldname)):
+            if oldname[i] in nonalphanumeric:
+                newname = newname + "_"
+            else:
+                newname = newname + oldname[i]
+        for i in range(t):
+            compname = spss.GetVariableName(i)
+            if newname.lower() == compname.lower():
+                newname = "var" + "%05d" % (t + 1)
+        if oldname != newname:
+            submitstring = "rename variables (%s = %s)." % (oldname, newname)
+            spss.Submit(submitstring)
 
-# Obtain lists of variables in the dataset
-	varlist = []
-	numericlist = []
-	stringlist = []
-	for t in range(spss.GetVariableCount()):
-		varlist.append(spss.GetVariableName(t))
-		if (spss.GetVariableType(t) == 0):
-			numericlist.append(spss.GetVariableName(t))
-		else:
-			stringlist.append(spss.GetVariableName(t))
+    #########
+    # Rename variables with names > 8 characters
+    #########
+    for t in range(spss.GetVariableCount()):
+        if len(spss.GetVariableName(t)) > 8:
+            name = spss.GetVariableName(t)[0:8]
+            for i in range(spss.GetVariableCount()):
+                compname = spss.GetVariableName(i)
+                if name.lower() == compname.lower():
+                    name = "var" + "%05d" % (t + 1)
+            submitstring = "rename variables (%s = %s)." % (spss.GetVariableName(t), name)
+            spss.Submit(submitstring)
 
-###########
-# Automatically recode string variables into numeric variables
-###########
-# First renaming string variables so the new numeric vars can take the 
-# original variable names
-	submitstring = "rename variables"
-	for var in stringlist:
-		submitstring = submitstring + "\n " + var + "=" + var + "_str"
-	submitstring = submitstring + "."
-	spss.Submit(submitstring)
+    # Obtain lists of variables in the dataset
+    varlist = []
+    numericlist = []
+    stringlist = []
+    for t in range(spss.GetVariableCount()):
+        varlist.append(spss.GetVariableName(t))
+        if spss.GetVariableType(t) == 0:
+            numericlist.append(spss.GetVariableName(t))
+        else:
+            stringlist.append(spss.GetVariableName(t))
 
-# Recoding variables
- if (len(stringlist) > 0):
- 	submitstring = "AUTORECODE VARIABLES="
-	 for var in stringlist:
-		 submitstring = submitstring + "\n " + var + "_str"
- 	submitstring = submitstring + "\n /into"
-	 for var in stringlist:
-		 submitstring = submitstring + "\n " + var
- 	submitstring = submitstring + """
-   /BLANK=MISSING
-   /PRINT."""
-	 spss.Submit(submitstring)
-	
-# Dropping string variables
-	submitstring = "delete variables"
-	for var in stringlist:
-		submitstring = submitstring + "\n " + var + "_str"
-	submitstring = submitstring + "."
-	spss.Submit(submitstring)
+    ###########
+    # Automatically recode string variables into numeric variables
+    ###########
+    # First renaming string variables so the new numeric vars can take the 
+    # original variable names
+    submitstring = "rename variables"
+    for var in stringlist:
+        submitstring = submitstring + "\n " + var + "=" + var + "_str"
+    submitstring = submitstring + "."
+    spss.Submit(submitstring)
 
-# Set all missing values to be -999
-	submitstring = "RECODE "
-	for var in varlist:
-		submitstring = submitstring + " " + var + "\n"
-	submitstring = submitstring + """ (MISSING=-999).
-EXECUTE."""
-	spss.Submit(submitstring)
+    # Recoding variables
+    if len(stringlist) > 0:
+        submitstring = "AUTORECODE VARIABLES="
+        for var in stringlist:
+            submitstring = submitstring + "\n " + var + "_str"
+        submitstring = submitstring + "\n /into"
+        for var in stringlist:
+            submitstring = submitstring + "\n " + var
+        submitstring = submitstring + """
+    /BLANK=MISSING
+    /PRINT."""
+        spss.Submit(submitstring)
+    
+    # Dropping string variables
+    submitstring = "delete variables"
+    for var in stringlist:
+        submitstring = submitstring + "\n " + var + "_str"
+    submitstring = submitstring + "."
+    spss.Submit(submitstring)
 
- numericMissing("-999")
+    # Set all missing values to be -999
+    submitstring = "RECODE "
+    for var in varlist:
+        submitstring = submitstring + " " + var + "\n"
+    submitstring = submitstring + """ (MISSING=-999).
+    EXECUTE."""
+    spss.Submit(submitstring)
 
-########
-# Convert date and time variables to numeric
-########
-# SPSS actually stores dates as the number of seconds that have elapsed since October 14, 1582.
-# This syntax takes variables with a date type and puts them in their natural numeric form
+    numericMissing("-999")
 
- submitstring = """numeric ddate7663804 (f11.0).
-alter type ddate7663804 (date11).
-ALTER TYPE ALL (DATE = F11.0).
-alter type ddate7663804 (adate11).
-ALTER TYPE ALL (ADATE = F11.0).
-alter type ddate7663804 (time11).
-ALTER TYPE ALL (TIME = F11.0).
+    ########
+    # Convert date and time variables to numeric
+    ########
+    # SPSS actually stores dates as the number of seconds that have elapsed since October 14, 1582.
+    # This syntax takes variables with a date type and puts them in their natural numeric form
 
-delete variables ddate7663804."""
- spss.Submit(submitstring)
+    submitstring = """numeric ddate7663804 (f11.0).
+    alter type ddate7663804 (date11).
+    ALTER TYPE ALL (DATE = F11.0).
+    alter type ddate7663804 (adate11).
+    ALTER TYPE ALL (ADATE = F11.0).
+    alter type ddate7663804 (time11).
+    ALTER TYPE ALL (TIME = F11.0).
 
-######
-# Obtain list of transformed variables
-######
- submitstring = """MATCH FILES /FILE=*
-  /keep="""
- for var in varlist:
-		submitstring = submitstring + "\n " + var
- submitstring = submitstring + """.
-EXECUTE."""
- spss.Submit(submitstring)
- MplusVarlist = []
- for varnum in range(spss.GetVariableCount()):
-  MplusVarlist.append(spss.GetVariableName(varnum))
+    delete variables ddate7663804."""
+    spss.Submit(submitstring)
 
-############
-# Create data file
-############
-# Break filename over multiple lines
- splitfilepath = SPSSspaceSplit(filepath, 60)
+    ######
+    # Obtain list of transformed variables
+    ######
+    submitstring = """MATCH FILES /FILE=*
+    /keep="""
+    for var in varlist:
+        submitstring = submitstring + "\n " + var
+    submitstring = submitstring + """.
+    EXECUTE."""
+    spss.Submit(submitstring)
+    MplusVarlist = []
+    for varnum in range(spss.GetVariableCount()):
+        MplusVarlist.append(spss.GetVariableName(varnum))
 
-# Save data as a tab-delimited text file
-	submitstring = """SAVE TRANSLATE OUTFILE=
-	%s
-  /TYPE=TAB
-  /MAP
-  /REPLACE
-  /CELLS=VALUES
-	/keep""" %(splitfilepath)
-	for var in varlist:
-		submitstring = submitstring + "\n " + var
-	submitstring = submitstring + "."
-	spss.Submit(submitstring)
+    ############
+    # Create data file
+    ############
+    # Break filename over multiple lines
+    splitfilepath = SPSSspaceSplit(filepath, 60)
 
-##############
-# Rename variables back to original values
-##############
- submitstring = "rename variables"
- for s, m in zip(SPSSvarlist, MplusVarlist):
-  submitstring += "\n(" + m + "=" + s + ")"
- submitstring += "."
- spss.Submit(submitstring)
+    # Save data as a tab-delimited text file
+    submitstring = """SAVE TRANSLATE OUTFILE=
+    %s
+    /TYPE=TAB
+    /MAP
+    /REPLACE
+    /CELLS=VALUES
+    /keep""" % (splitfilepath)
+    for var in varlist:
+        submitstring = submitstring + "\n " + var
+    submitstring = submitstring + "."
+    spss.Submit(submitstring)
 
- return MplusVarlist
+    ##############
+    # Rename variables back to original values
+    ##############
+    submitstring = "rename variables"
+    for s, m in zip(SPSSvarlist, MplusVarlist):
+        submitstring += "\n(" + m + "=" + s + ")"
+    submitstring += "."
+    spss.Submit(submitstring)
 
-class MplusPAprogram:
+    return MplusVarlist
+
+class MplusTLprogram:
     def __init__(self):
         self.title = "TITLE:\n"
         self.data = "DATA:\n"
@@ -619,293 +627,296 @@ class MplusPAprogram:
         splitName = MplusSplit(filename, 75)
         self.data += "'" + splitName + "';"
 
-    def setVariable(self, fullList, withinLatent, withinModel, withinVar, 
-slopeVars,
-betweenLatent, betweenModel, betweenVar, useobservations, 
-categorical, censored, count, nominal, cluster, complex, weight):
+    def setVariableTL(self, fullList, withinLatent, withinModel, withinVar, slopeVars,
+                      betweenLatent, betweenModel, betweenVar, useobservations, 
+                      categorical, censored, count, nominal, cluster, complex, weight):
         self.variable += "Names are\n"
         for var in fullList:
             self.variable += var + "\n"
         self.variable += ";\n\n"
 
-# Determine usevariables
+        # Determine usevariables
         useList = []
         latentName = []
-        if (withinLatent != None):
+        if withinLatent is not None:
             for equation in withinLatent:
                 latentName.append(equation[0])
                 for var in equation[1:]:
-                    if (var not in useList):
+                    if var not in useList:
                         useList.append(var)
-        if (betweenLatent != None):
+        if betweenLatent is not None:
             for equation in betweenLatent:
                 latentName.append(equation[0])
                 for var in equation[1:]:
-                    if (var not in useList and var not in slopeVars):
+                    if var not in useList and var not in slopeVars:
                         useList.append(var)
-        if (withinModel != None):
+        if withinModel is not None:
             for equation in withinModel:
                 for var in equation:
-                    if (var not in useList and var not in latentName):
+                    if var not in useList and var not in latentName:
                         useList.append(var)
-        if (betweenModel != None):
+        if betweenModel is not None:
             for equation in betweenModel:
                 for var in equation:
-                    if (var not in useList and var not in latentName and var not in slopeVars):
+                    if var not in useList and var not in latentName and var not in slopeVars:
                         useList.append(var)
         self.variable += "Usevariables are\n"
         for var in useList:
             self.variable += var + "\n"
 
-# Other variable additions
-        if (useobservations != None):
+        # Other variable additions
+        if useobservations is not None:
             self.variable += ";\n\nuseobservations are " + useobservations
         self.variable += ";\n\ncluster is"
-        if (complex != None):
+        if complex is not None:
             self.variable += " " + complex
         self.variable += " " + cluster
-        if (weight != None):
+        if weight is not None:
             self.variable += ";\n\nweight is " + weight
 
-        vartypeList = [categorical, censored, count, nominal, 
-withinVar, betweenVar]
-        varnameList = ["categorical", "censored", "count", "nominal", 
-"within", "between"]
+        vartypeList = [categorical, censored, count, nominal, withinVar, betweenVar]
+        varnameList = ["categorical", "censored", "count", "nominal", "within", "between"]
         for t in range(len(vartypeList)):
-            if (vartypeList[t] != []):
+            if vartypeList[t]:
                 self.variable += ";\n\n{0} = ".format(varnameList[t])
                 for var in vartypeList[t]:
                     self.variable += var + "\n"
         self.variable += ";\n\nMISSING ARE ALL (-999);"
 
     def setDefine(self, MplusGroupmean, MplusGrandmean):
-        if (MplusGroupmean == [] and MplusGrandmean == []):
+        if not MplusGroupmean and not MplusGrandmean:
             self.define += ""
         else:
             self.define += "CENTER"
-            if MplusGroupmean != []:
+            if MplusGroupmean:
                 for var in MplusGroupmean:
                     self.define += " " + var
                 self.define += " (GROUPMEAN)"
-            if MplusGrandmean != []:
+            if MplusGrandmean:
                 for var in MplusGrandmean:
                     self.define += " " + var
                 self.define += " (GRANDMEAN)"
             self.define += ";"
 
-    def setAnalysis(self, cluster, complex, MplusWithinSlopes, estimator, weight, mc, boot, repse):
+    def setAnalysis(self, cluster, complex, MplusWithinSlopes, estimator, starts, weight, 
+                    mc, boot, repse, processors):
         self.analysis += "type = twolevel"
-        if (complex != None):
+        if complex is not None:
             self.analysis += " complex"
-        if (MplusWithinSlopes != None):
+        if MplusWithinSlopes is not None:
             self.analysis += " random"
         self.analysis += ";"
-        if (estimator != None):
+        if estimator is not None:
             self.analysis += "\nestimator = {0};".format(estimator)
-        if (mc != None):
+        if starts is not None:
+            self.analysis += "\nstarts = {0};".format(starts)
+        if mc is not None:
             self.analysis += "\nintegration = montecarlo({0});".format(mc)
-        if (boot != None):
+        if boot is not None:
             self.analysis += "\nbootstrap = {0};".format(boot)
-        if (repse != None):
+        if repse is not None:
             self.analysis += "\nrepse = {0};".format(repse)
+        if processors is not None:
+            self.analysis += "\nprocessors = {0};".format(processors)
 
     def setModel(self, MplusWithinLatent, MplusWithinLatentFixed, MplusWithinModel, 
-MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, MplusWithinMeanIdentifiers,
-withinEndo, withinExo, MplusWithinSlopes, 
-MplusBetweenLatent, MplusBetweenLatentFixed, MplusBetweenModel, MplusBetweenMeans,
-MplusBetweenCovar, MplusBetweenIdentifiers, MplusBetweenMeanIdentifiers,
-betweenEndo, betweenExo, wald):
+                 MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, MplusWithinMeanIdentifiers,
+                 withinEndo, withinExo, MplusWithinSlopes, 
+                 MplusBetweenLatent, MplusBetweenLatentFixed, MplusBetweenModel, MplusBetweenMeans,
+                 MplusBetweenCovar, MplusBetweenIdentifiers, MplusBetweenMeanIdentifiers,
+                 betweenEndo, betweenExo, wald):
         
         def modelCode(label, latent, latentFixed, model, means, covar, identifiers, meanIdentifiers,
-cEndo, cExo, slopes, slopeList,):
+                      cEndo, cExo, slopes, slopeList):
             code = "%{0}%\n".format(label)
             # Latent variable definitions
-            if (latent != None):
-              for equation in latent:
-                  curline = equation[0] + " by"
-                  for var in equation[1:]:
-                          if (len(curline) + len(var) < 75):
-                              curline += " " + var
-                          else:
-                              code += curline + "\n"
-                              curline = var
-                  if (latentFixed != None):
-                      for t in latentFixed:
-                          if (equation == t[0]):
-                              curline += "@" + str(t[1])
-                  code += curline + ";\n\n"                              
+            if latent is not None:
+                for equation in latent:
+                    curline = equation[0] + " by"
+                    for var in equation[1:]:
+                        if len(curline) + len(var) < 75:
+                            curline += " " + var
+                        else:
+                            code += curline + "\n"
+                            curline = var
+                    if latentFixed is not None:
+                        for t in latentFixed:
+                            if equation == t[0]:
+                                curline += "@" + str(t[1])
+                    code += curline + ";\n\n"                              
             
             # Regression equations
-            if (model != None):
-              for equation in model:
-                  curline = ""
-                  if (slopes != None):
-                      for s in slopes:
-                          if (equation == s[0]):
-                              curline += s[1] + " | " 
-                  curline += equation[0] + " on"
-                  for var in equation[1:]:
-                          if (len(curline) + len(var) < 75):
-                              curline += " " + var
-                          else:
-                              code += curline + "\n"
-                              curline = var
-                  if (identifiers != None):
-                      for id in identifiers:
-                          if (equation == id[0]):
-                              curline += " (" + id[1] + ")"
-                  code += curline + ";\n"
+            if model is not None:
+                for equation in model:
+                    curline = ""
+                    if slopes is not None:
+                        for s in slopes:
+                            if equation == s[0]:
+                                curline += s[1] + " | " 
+                    curline += equation[0] + " on"
+                    for var in equation[1:]:
+                        if len(curline) + len(var) < 75:
+                            curline += " " + var
+                        else:
+                            code += curline + "\n"
+                            curline = var
+                    if identifiers is not None:
+                        for id in identifiers:
+                            if equation == id[0]:
+                                curline += " (" + id[1] + ")"
+                    code += curline + ";\n"
             
             # Means               
-            if (means != None):
+            if means is not None:
                 for m in means:
                     curline = "[" + m + "]"
-                    if (meanIdentifiers != None):
+                    if meanIdentifiers is not None:
                         for id in meanIdentifiers:
-                             if (m == id[0]):
+                            if m == id[0]:
                                 curline += " (" + id[1] + ")"
                     code += curline + ";\n"                  
             
             # Getting lists of endogenous and exogenous variables
             endo = []
             for equation in model:
-              if (equation[0] not in slopeList):
-                  endo.append(equation[0])
+                if equation[0] not in slopeList:
+                    endo.append(equation[0])
             endo = list(set(endo))
             exo = []
             for equation in model:
-              for var in equation:
-                  if (var not in endo and var not in exo and var not in slopeList):
-                      exo.append(var)
+                for var in equation:
+                    if var not in endo and var not in exo and var not in slopeList:
+                        exo.append(var)
             
             # Add defined covariances
-            if (covar != None):
-              for t in range(len(covar)):
-                  code += "\n" + covar[t][0] + " with "  
-                  code += covar[t][1] + ";"
-              code += "\n"
+            if covar is not None:
+                for t in range(len(covar)):
+                    code += "\n" + covar[t][0] + " with "  
+                    code += covar[t][1] + ";"
+                code += "\n"
             
             # Covariances for all exogenous variables
-            if (cExo == True and model != None):
-            # Estimate variances for exogenous variables so that they
-            # will be included in FIML
-            # Cannot include predictors that are also included as random slopes 
-              if (len(exo) > 0):
-                  for var in exo:
-                      code += "\n" + var + ";"
-                  code += "\n"
-                  for t in range(len(exo)-1):
-                      code += "\n" 
-                      curline = exo[t] + " with"
-                      for var in exo[t+1:]:
-                          if (len(curline) + len(var) < 75):
-                              curline = curline + " " + var
-                          else:
-                              code += curline + "\n"
-                              curline = var
-                      code += curline + ";"
+            if cExo and model is not None:
+                # Estimate variances for exogenous variables so that they
+                # will be included in FIML
+                # Cannot include predictors that are also included as random slopes 
+                if exo:
+                    for var in exo:
+                        code += "\n" + var + ";"
+                    code += "\n"
+                    for t in range(len(exo) - 1):
+                        code += "\n" 
+                        curline = exo[t] + " with"
+                        for var in exo[t + 1:]:
+                            if len(curline) + len(var) < 75:
+                                curline = curline + " " + var
+                            else:
+                                code += curline + "\n"
+                                curline = var
+                        code += curline + ";"
             
-            # Covariances for all endgenous variables
-            if (cEndo == True and model != None):
-              if (len(endo) > 0):
-                  code += "\n"
-                  for t in range(len(endo)-1):
-                      code += "\n" 
-                      curline = endo[t] + " with"
-                      for var in endo[t+1:]:
-                          if (len(curline) + len(var) < 75):
-                              curline = curline + " " + var
-                          else:
-                              code += curline + "\n"
-                              curline = var
-                      code += curline + ";"
+            # Covariances for all endogenous variables
+            if cEndo and model is not None:
+                if endo:
+                    code += "\n"
+                    for t in range(len(endo) - 1):
+                        code += "\n" 
+                        curline = endo[t] + " with"
+                        for var in endo[t + 1:]:
+                            if len(curline) + len(var) < 75:
+                                curline = curline + " " + var
+                            else:
+                                code += curline + "\n"
+                                curline = var
+                        code += curline + ";"
             code += "\n\n"
-            return(code)
+            return code
 
-# List of variables involved in random slopes
+        # List of variables involved in random slopes
         slopeList = []
-        if (MplusWithinSlopes != None):
+        if MplusWithinSlopes is not None:
             for slope in MplusWithinSlopes:
                 for var in slope[0]:
                     slopeList.append(var)
-# Within Model
+        
+        # Within Model
         withinCode = modelCode("WITHIN", MplusWithinLatent, MplusWithinLatentFixed, 
-MplusWithinModel, MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, 
-MplusWithinMeanIdentifiers, withinEndo, withinExo, MplusWithinSlopes, slopeList)
+                               MplusWithinModel, MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, 
+                               MplusWithinMeanIdentifiers, withinEndo, withinExo, MplusWithinSlopes, slopeList)
         self.model += withinCode
-# Between Model
+        
+        # Between Model
         betweenCode = modelCode("BETWEEN", MplusBetweenLatent, MplusBetweenLatentFixed,
-MplusBetweenModel, MplusBetweenMeans, MplusBetweenCovar, MplusBetweenIdentifiers, 
-MplusBetweenMeanIdentifiers, betweenEndo, betweenExo, None, slopeList)
+                                MplusBetweenModel, MplusBetweenMeans, MplusBetweenCovar, MplusBetweenIdentifiers, 
+                                MplusBetweenMeanIdentifiers, betweenEndo, betweenExo, None, slopeList)
         self.model += betweenCode
 
-# Wald test
-        if (wald != None):
+        # Wald test
+        if wald is not None:
             self.model += "\n\nMODEL TEST:"
             for line in wald:
                 self.model += "\n" + line + ";"
 
     def setConstraint(self, constraintText):
-        if (constraintText != None):
-            self.constraint +="\n" + constraintText
+        if constraintText is not None:
+            self.constraint += "\n" + constraintText
 
     def setOutput(self, MplusComplex, miThreshold, boot):
-        if (MplusComplex == None):
+        if MplusComplex is None:
             self.output += "stdyx;"
-        if (boot != None):
+        if boot is not None:
             self.output += "\ncinterval(bcbootstrap);"
         self.output += "\nmodindices({0});".format(miThreshold)
 
     def write(self, filename):
-# Write input file
+        # Write input file
         sectionList = [self.title, self.data, self.variable, self.define,
-self.analysis, self.model, self.constraint, self.output, self.savedata, 
-self.plot, self.montecarlo]
-        outfile = open(filename, "w")
-        for sec in sectionList:
-            if (sec[-2:] != ":\n"):
-                outfile.write(sec)
-                outfile.write("\n\n")
-        outfile.close()
+                       self.analysis, self.model, self.constraint, self.output, self.savedata, 
+                       self.plot, self.montecarlo]
+        with open(filename, "w") as outfile:
+            for sec in sectionList:
+                if sec[-2:] != ":\n":
+                    outfile.write(sec)
+                    outfile.write("\n\n")
 
 def batchfile(directory, filestem):
-# Write batch file
-    batchFile = open(directory + "/" + filestem + ".bat", "w")
-    batchFile.write("cd " + directory + "\n")
-    batchFile.write("call mplus \"" + filestem + ".inp" + "\"\n")
-    batchFile.close()
+    # Write batch file
+    with open(os.path.join(directory, filestem + ".bat"), "w") as batchFile:
+        batchFile.write("cd " + directory + "\n")
+        batchFile.write("call mplus \"" + filestem + ".inp" + "\"\n")
 
-# Run batch file
-    p = Popen(directory + "/" + filestem + ".bat", cwd=directory)
+    # Run batch file
+    p = Popen([os.path.join(directory, filestem + ".bat")], cwd=directory)
 
 def removeBlanks(processString):
-    if (processString == None):
-        return (None)
+    if processString is None:
+        return None
     else:
         for t in range(len(processString), 0, -1):
-                if (processString[t-1] != "\n"):
-                    return (processString[0:t])
+            if processString[t - 1] != "\n":
+                return processString[0:t]
 
 def getCoefficients(outputBlock):
     coefficients = []
-    if (outputBlock != None):
+    if outputBlock is not None:
         outputBlock2 = outputBlock.replace("\r", "")
+        outputBlock2 = outputBlock2.replace("*********", "-999")
         blockList = outputBlock2.split("\n")
         for t in range(len(blockList)):
             values1 = blockList[t].split(" ")
             values2 = []
             for i in values1:
-                if (i != ""):
+                if i != "":
                     values2.append(i)
 
-            if (len(values2) > 1):
-                if (values2[1] == "ON"):
+            if len(values2) > 1:
+                if values2[1] == "ON":
                     outcome = values2[0]
-                if (len(values2) > 2 and values2[0] != "Estimate"):
+                if len(values2) > 2 and values2[0] != "Estimate":
                     line = [outcome]
                     line.extend(values2[0:1])
                     for j in values2[1:]:
-                        if (j != "*"):
+                        if j != "*":
                             line.append(float(j))
                     coefficients.append(line)
     return coefficients
@@ -913,38 +924,36 @@ def getCoefficients(outputBlock):
 def getStats(outputBlock, startList, stopList):
     stats = []
     startRead = 0
-    if (outputBlock != None):
+    if outputBlock is not None:
         outputBlock2 = outputBlock.replace("\r", "")
         blockList = outputBlock2.split("\n")
         for t in range(len(blockList)):
             values1 = blockList[t].split(" ")
             values2 = []
             for i in values1:
-                if (i != ""):
+                if i != "":
                     values2.append(i)
 
-            if (len(values2) > 0):
-                if (values2[0] in stopList):
+            if len(values2) > 0:
+                if values2[0] in stopList:
                     break
-                if (startRead == 1):
+                if startRead == 1:
                     line = [values2[0]]
                     for j in values2[1:]:
                         line.append(float(j))
                     stats.append(line)
-                if (values2[0] in startList):
+                if values2[0] in startList:
                     startRead = 1
-
     return stats
 
 class MplusTLoutput:
-    def __init__(self, modellabel, filename, Mplus, SPSS, slopes, complex, estimator):
+    def __init__(self, modellabel, filename, Mplus, SPSS, slopes, complex, estimator, starts):
         self.label = modellabel
-        infile = open(filename, "rb")
-        fileText = infile.read()
-        infile.close()
+        with open(filename, "rb") as infile:
+            fileText = infile.read().decode('utf-8')
         outputList = fileText.split("\n")
 
-        if (estimator == "BAYES"):
+        if estimator == "BAYES":
             self.header = """                                               Posterior  One-Tailed         95% C.I.
                                    Estimate       S.D.      P-Value   Lower 2.5%  Upper 2.5%  Sig"""
         else:
@@ -975,655 +984,604 @@ class MplusTLoutput:
         self.wmi = None
         self.bmi = None
 
-# Summary
+        # Summary
         for t in range(len(outputList)):
-            if ("SUMMARY OF ANALYSIS" in outputList[t]):
+            if "SUMMARY OF ANALYSIS" in outputList[t]:
                 start = t
-            if ("Number of continuous latent variables" in outputList[t]):
+            if "Number of continuous latent variables" in outputList[t]:
                 end = t
-        self.summary = "\n".join(outputList[start:end+1])
-# Warnings
+        self.summary = "\n".join(outputList[start:end + 1])
+        
+        # Warnings
         for t in range(len(outputList)):
-            if ("Covariance Coverage" in outputList[t]):
+            if "Covariance Coverage" in outputList[t]:
                 covcov = t
         blank = 0
         for t in range(covcov, len(outputList)):
-            if (len(outputList[t]) < 2):
+            if len(outputList[t]) < 2:
                 blank = 1
-            if (blank == 1 and len(outputList[t]) > 1):
+            if blank == 1 and len(outputList[t]) > 1:
                 start = t
                 break
         for t in range(start, len(outputList)):
-            if ("MODEL FIT INFORMATION" in outputList[t] or
-"MODEL RESULTS" in outputList[t]):
+            if "MODEL FIT INFORMATION" in outputList[t] or "MODEL RESULTS" in outputList[t]:
                 end = t
                 break
         self.warnings = "\n".join(outputList[start:end])
         self.warnings = removeBlanks(self.warnings)
 
-        if ("MODEL ESTIMATION TERMINATED NORMALLY" in self.warnings):
-# Fit statistics
+        if "MODEL ESTIMATION TERMINATED NORMALLY" in self.warnings:
+            # Fit statistics
             start = end
             for t in range(start, len(outputList)):
-                if ("MODEL RESULTS" in outputList[t]):
+                if "MODEL RESULTS" in outputList[t]:
                     end = t
                     break
             self.fit = "\n".join(outputList[start:end])
             self.fit = removeBlanks(self.fit)
 
-# Within Unstandardized measurement model
+        # Within Unstandardized measurement model
         start = end
         secexists = 0
         for t in range(start, len(outputList)):
-            if (re.search(r"\bBY\b", outputList[t])):
+            if re.search(r"\bBY\b", outputList[t]):
                 start = t
                 secexists = 1
                 break
-            if (re.search(r"\bBetween Level\b", outputList[t])):
+            if re.search(r"\bBetween Level\b", outputList[t]):
                 break
-        if (secexists == 1):
+        if secexists == 1:
             for t in range(start, len(outputList)):
-                if (re.search(r"\bON\b", outputList[t]) or
-    re.search(r"\bWITH\b", outputList[t]) or
-    re.search(r"\bMeans\b", outputList[t]) or 
-    re.search(r"\bVariances\b", outputList[t]) ):
+                if re.search(r"\bON\b", outputList[t]) or re.search(r"\bWITH\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                     end = t
                     break
             self.wmeasurement = "\n".join(outputList[start:end])
             self.wmeasurement = removeBlanks(self.wmeasurement)
 
-# Within Unstandardized coefficients
+        # Within Unstandardized coefficients
         start = end
         secexists = 0
         for t in range(start, len(outputList)):
-            if (re.search(r"\bON\b", outputList[t])):
+            if re.search(r"\bON\b", outputList[t]):
                 start = t
                 secexists = 1
                 break
-            if (re.search(r"\bBetween Level\b", outputList[t])):
+            if re.search(r"\bBetween Level\b", outputList[t]) or re.search(r"\bSTANDARDIZED\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]):
                 break
-            if (re.search(r"\bSTANDARDIZED\b", outputList[t])):
-                break
-        if (secexists == 1):
+        if secexists == 1:
             for t in range(start, len(outputList)):
-                if (re.search(r"\bWITH\b", outputList[t]) or
-    re.search(r"\bMeans\b", outputList[t]) or 
-    re.search(r"\bVariances\b", outputList[t])):
+                if re.search(r"\bWITH\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                     end = t
                     break
             self.wcoefficients = "\n".join(outputList[start:end])
             self.wcoefficients = removeBlanks(self.wcoefficients)
 
-# Within Unstandardized covariances
+        # Within Unstandardized covariances
         start = end
         secexists = 0
         for t in range(start, len(outputList)):
-            if (re.search(r"\bWITH\b", outputList[t])):
+            if re.search(r"\bWITH\b", outputList[t]):
                 start = t
                 secexists = 1
                 break
-            if (re.search(r"\bBetween Level\b", outputList[t])):
+            if re.search(r"\bBetween Level\b", outputList[t]) or re.search(r"\bSTANDARDIZED\b", outputList[t]):
                 break
-            if (re.search(r"\bSTANDARDIZED\b", outputList[t])):
-                break                
-        if (secexists == 1):
+        if secexists == 1:
             for t in range(start, len(outputList)):
-                if (re.search(r"\bMeans\b", outputList[t]) or 
-    re.search(r"\bVariances\b", outputList[t])):
+                if re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                     end = t
                     break
             self.wcovariances = "\n".join(outputList[start:end])
             self.wcovariances = removeBlanks(self.wcovariances)
 
-# Within Unstandardized Descriptives
+        # Within Unstandardized Descriptives
         start = end
         for t in range(start, len(outputList)):
-            if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
-"MODEL COMMAND" in outputList[t] or
-    "New/Additional Parameters" in outputList[t] or 
-"Between Level" in outputList[t]):
+            if "STANDARDIZED MODEL RESULTS" in outputList[t] or "MODEL COMMAND" in outputList[t] or "New/Additional Parameters" in outputList[t] or "Between Level" in outputList[t]:
                 end = t
                 break
         self.wdescriptives = "\n".join(outputList[start:end])
         self.wdescriptives = removeBlanks(self.wdescriptives)
 
-# Between Unstandardized measurement model
+        # Between Unstandardized measurement model
         start = end
         secexists = 0
         for t in range(start, len(outputList)):
-            if ("QUALITY OF NUMERICAL RESULTS" in outputList[t]):
+            if "QUALITY OF NUMERICAL RESULTS" in outputList[t]:
                 break
-            if (re.search(r"\bBY\b", outputList[t])):
+            if re.search(r"\bBY\b", outputList[t]):
                 start = t
                 secexists = 1
                 break
-        if (secexists == 1):
+        if secexists == 1:
             for t in range(start, len(outputList)):
-                if (re.search(r"\bON\b", outputList[t]) or
-    re.search(r"\bWITH\b", outputList[t]) or
-    re.search(r"\bMeans\b", outputList[t]) or 
-    re.search(r"\bVariances\b", outputList[t]) ):
+                if re.search(r"\bON\b", outputList[t]) or re.search(r"\bWITH\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                     end = t
                     break
             self.bmeasurement = "\n".join(outputList[start:end])
             self.bmeasurement = removeBlanks(self.bmeasurement)
 
-# Between Unstandardized coefficients
+        # Between Unstandardized coefficients
         start = end
         secexists = 0
         for t in range(start, len(outputList)):
-            if (re.search(r"\bON\b", outputList[t])):
+            if re.search(r"\bON\b", outputList[t]):
                 start = t
                 secexists = 1
                 break
-            if (re.search(r"\bSTANDARDIZED\b", outputList[t])):
-                break                
-        if (secexists == 1):
+            if re.search(r"\bSTANDARDIZED\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]):
+                break
+        if secexists == 1:
             for t in range(start, len(outputList)):
-                if (re.search(r"\bWITH\b", outputList[t]) or
-    re.search(r"\bMeans\b", outputList[t]) or 
-    re.search(r"\bVariances\b", outputList[t])):
+                if re.search(r"\bWITH\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                     end = t
                     break
             self.bcoefficients = "\n".join(outputList[start:end])
             self.bcoefficients = removeBlanks(self.bcoefficients)
 
-# Between Unstandardized covariances
+        # Between Unstandardized covariances
         start = end
         secexists = 0
         for t in range(start, len(outputList)):
-            if (re.search(r"\bWITH\b", outputList[t]) or 
-re.search(r"\bMeans\b", outputList[t]) or
-re.search(r"\bVariances\b", outputList[t])):
+            if re.search(r"\bWITH\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                 start = t
                 secexists = 1
                 break
-            if (re.search(r"\bSTANDARDIZED\b", outputList[t])):
-                break                
-        if (secexists == 1):
+            if re.search(r"\bSTANDARDIZED\b", outputList[t]):
+                break
+        if secexists == 1:
             for t in range(start, len(outputList)):
-                if (re.search(r"\bMeans\b", outputList[t]) or 
-    re.search(r"\bVariances\b", outputList[t])):
+                if re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                     end = t
                     break
             self.bcovariances = "\n".join(outputList[start:end])
             self.bcovariances = removeBlanks(self.bcovariances)
 
-# Between Unstandardized Descriptives
+        # Between Unstandardized Descriptives
         start = end
         for t in range(start, len(outputList)):
-            if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
-"MODEL COMMAND" in outputList[t] or
-"STANDARDIZED" in outputList[t] or
-    "New/Additional Parameters" in outputList[t] or
-"QUALITY OF NUMERICAL RESULTS" in outputList[t]):
+            if "STANDARDIZED MODEL RESULTS" in outputList[t] or "MODEL COMMAND" in outputList[t] or "STANDARDIZED" in outputList[t] or "New/Additional Parameters" in outputList[t] or "QUALITY OF NUMERICAL RESULTS" in outputList[t]:
                 end = t
                 break
         self.bdescriptives = "\n".join(outputList[start:end])
         self.bdescriptives = removeBlanks(self.bdescriptives)
 
-# New/additional parameters
+        # New/additional parameters
         start = end
-        if ("New/Additional Parameters" in outputList[start]):
+        if "New/Additional Parameters" in outputList[start]:
             for t in range(start, len(outputList)):
-                if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
-"STANDARDIZED" in outputList[t] or
-    "MODEL COMMAND" in outputList[t] or
-"QUALITY OF NUMERICAL RESULTS" in outputList[t]):
+                if "STANDARDIZED MODEL RESULTS" in outputList[t] or "STANDARDIZED" in outputList[t] or "MODEL COMMAND" in outputList[t] or "QUALITY OF NUMERICAL RESULTS" in outputList[t]:
                     end = t
                     break
             self.newParam = "\n".join(outputList[start:end])
-            self.newParam = removeBlanks(self.newParam)        
+            self.newParam = removeBlanks(self.newParam)
 
         noStand = 0
         for t in range(len(outputList)):
-            if ("STANDARDIZED (STD, STDY, STDYX) options are not available" in outputList[t]
-or "Request for STANDARDIZED (STD, STDY, STDYX) is ignored" in outputList[t]):
+            if "STANDARDIZED (STD, STDY, STDYX) options are not available" in outputList[t] or "Request for STANDARDIZED (STD, STDY, STDYX) is ignored" in outputList[t]:
                 noStand = 1
                 break
-            if ("SUMMARY OF ANALYSIS" in outputList[t]):
+            if "SUMMARY OF ANALYSIS" in outputList[t]:
                 break
-        if (complex != None):
+        if complex is not None:
             noStand = 1
-        
-        if (noStand == 0):
-# Within standardized measurement model
-            if ("MODEL ESTIMATION TERMINATED NORMALLY" in self.warnings):
+
+        if noStand == 0:
+            # Within standardized measurement model
+            if "MODEL ESTIMATION TERMINATED NORMALLY" in self.warnings:
                 start = end
                 secexists = 0
                 for t in range(start, len(outputList)):
-                    if (re.search(r"\bBY\b", outputList[t])):
+                    if re.search(r"\bBY\b", outputList[t]):
                         start = t
                         secexists = 1
                         break
-                    if (re.search(r"\bBetween Level\b", outputList[t])):
+                    if re.search(r"\bBetween Level\b", outputList[t]):
                         break
-                if (secexists == 1):
+                if secexists == 1:
                     for t in range(start, len(outputList)):
-                        if (re.search(r"\bON\b", outputList[t]) or
-            re.search(r"\bWITH\b", outputList[t]) or
-            re.search(r"\bMeans\b", outputList[t]) or 
-            re.search(r"\bVariances\b", outputList[t]) ):
+                        if re.search(r"\bON\b", outputList[t]) or re.search(r"\bWITH\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                             end = t
                             break
                     self.Zwmeasurement = "\n".join(outputList[start:end])
                     self.Zwmeasurement = removeBlanks(self.Zwmeasurement)
 
-        # Within standardized coefficients
+                # Within standardized coefficients
                 start = end
                 secexists = 0
                 for t in range(start, len(outputList)):
-                    if (re.search(r"\bON\b", outputList[t])):
+                    if re.search(r"\bON\b", outputList[t]):
                         start = t
                         secexists = 1
                         break
-                    if (re.search(r"\bBetween Level\b", outputList[t])):
+                    if re.search(r"\bBetween Level\b", outputList[t]):
                         break
-                if (secexists == 1):
+                if secexists == 1:
                     for t in range(start, len(outputList)):
-                        if (re.search(r"\bWITH\b", outputList[t]) or
-            re.search(r"\bMeans\b", outputList[t]) or 
-            re.search(r"\bVariances\b", outputList[t])):
+                        if re.search(r"\bWITH\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                             end = t
                             break
                     self.Zwcoefficients = "\n".join(outputList[start:end])
                     self.Zwcoefficients = removeBlanks(self.Zwcoefficients)
 
-        # Within standardized covariances
+                # Within standardized covariances
                 start = end
                 secexists = 0
                 for t in range(start, len(outputList)):
-                    if (re.search(r"\bWITH\b", outputList[t])):
+                    if re.search(r"\bWITH\b", outputList[t]):
                         start = t
                         secexists = 1
                         break
-                    if (re.search(r"\bBetween Level\b", outputList[t])):
+                    if re.search(r"\bBetween Level\b", outputList[t]):
                         break
-                if (secexists == 1):
+                if secexists == 1:
                     for t in range(start, len(outputList)):
-                        if (re.search(r"\bMeans\b", outputList[t]) or 
-            re.search(r"\bVariances\b", outputList[t])):
+                        if re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                             end = t
                             break
                     self.Zwcovariances = "\n".join(outputList[start:end])
                     self.Zwcovariances = removeBlanks(self.Zwcovariances)
 
-        # Within Unstandardized Descriptives
+                # Within Unstandardized Descriptives
                 start = end
                 for t in range(start, len(outputList)):
-                    if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
-        "MODEL COMMAND" in outputList[t] or
-        "Between Level" in outputList[t]):
+                    if "STANDARDIZED MODEL RESULTS" in outputList[t] or "MODEL COMMAND" in outputList[t] or "Between Level" in outputList[t]:
                         end = t
                         break
                 self.Zwdescriptives = "\n".join(outputList[start:end])
                 self.Zwdescriptives = removeBlanks(self.Zwdescriptives)
 
-        # Between standardized measurement model
+                # Between standardized measurement model
                 start = end
                 secexists = 0
                 for t in range(start, len(outputList)):
-                    if (re.search(r"\bBY\b", outputList[t])):
+                    if re.search(r"\bBY\b", outputList[t]):
                         start = t
                         secexists = 1
                         break
-                if (secexists == 1):
+                if secexists == 1:
                     for t in range(start, len(outputList)):
-                        if (re.search(r"\bON\b", outputList[t]) or
-            re.search(r"\bWITH\b", outputList[t]) or
-            re.search(r"\bMeans\b", outputList[t]) or 
-            re.search(r"\bVariances\b", outputList[t]) ):
+                        if re.search(r"\bON\b", outputList[t]) or re.search(r"\bWITH\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                             end = t
                             break
                     self.Zbmeasurement = "\n".join(outputList[start:end])
                     self.Zbmeasurement = removeBlanks(self.Zbmeasurement)
 
-        # Between standardized coefficients
+                # Between standardized coefficients
                 start = end
                 secexists = 0
                 for t in range(start, len(outputList)):
-                    if (re.search(r"\bON\b", outputList[t])):
+                    if re.search(r"\bON\b", outputList[t]):
                         start = t
                         secexists = 1
                         break
-                if (secexists == 1):
+                if secexists == 1):
                     for t in range(start, len(outputList)):
-                        if (re.search(r"\bWITH\b", outputList[t]) or
-            re.search(r"\bMeans\b", outputList[t]) or 
-            re.search(r"\bVariances\b", outputList[t])):
+                        if re.search(r"\bWITH\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                             end = t
                             break
                     self.Zbcoefficients = "\n".join(outputList[start:end])
                     self.Zbcoefficients = removeBlanks(self.Zbcoefficients)
 
-        # Between standardized covariances
+                # Between standardized covariances
                 start = end
                 secexists = 0
                 for t in range(start, len(outputList)):
-                    if (re.search(r"\bWITH\b", outputList[t])):
+                    if re.search(r"\bWITH\b", outputList[t]):
                         start = t
                         secexists = 1
                         break
-                    if (re.search(r"\bR-SQUARE\b", outputList[t])):
+                    if re.search(r"\bR-SQUARE\b", outputList[t]):
                         break
-                if (secexists == 1):
+                if secexists == 1:
                     for t in range(start, len(outputList)):
-                        if (re.search(r"\bMeans\b", outputList[t]) or 
-            re.search(r"\bVariances\b", outputList[t])):
+                        if re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                             end = t
                             break
                     self.Zbcovariances = "\n".join(outputList[start:end])
                     self.Zbcovariances = removeBlanks(self.Zbcovariances)
 
-        # Between standardized Descriptives
+                # Between standardized Descriptives
                 start = end
                 for t in range(start, len(outputList)):
-                    if ("STANDARDIZED MODEL RESULTS" in outputList[t] or
-        "MODEL COMMAND" in outputList[t] or
-        "R-SQUARE" in outputList[t]):
+                    if "STANDARDIZED MODEL RESULTS" in outputList[t] or "MODEL COMMAND" in outputList[t] or "R-SQUARE" in outputList[t]:
                         end = t
                         break
                 self.Zbdescriptives = "\n".join(outputList[start:end])
                 self.Zbdescriptives = removeBlanks(self.Zbdescriptives)
 
-    # Within R squares
+                # Within R squares
                 start = end
                 for t in range(start, len(outputList)):
-                    if ("Between Level" in outputList[t]):
+                    if "Between Level" in outputList[t]:
                         end = t
                         break
                 self.wr2 = "\n".join(outputList[start:end])
                 self.wr2 = removeBlanks(self.wr2)
 
-    # Between R squares
+                # Between R squares
                 start = end
                 for t in range(start, len(outputList)):
-                    if ("QUALITY OF NUMERICAL RESULTS" in outputList[t]):
+                    if "QUALITY OF NUMERICAL RESULTS" in outputList[t] or "MODEL MODIFICATION INDICES" in outputList[t]:
                         end = t
                         break
                 self.br2 = "\n".join(outputList[start:end])
                 self.br2 = removeBlanks(self.br2)
 
-# Within Modification indices
-            for t in range(end, len(outputList)):
-                stest = 0
-                if ("MODEL MODIFICATION INDICES" in outputList[t]):
-                    start = t
-                    stest = 1
-                    break
-            if (stest == 1):
-                for t in range(start, len(outputList)):
-                    if ("Between Level" in outputList[t]):
-                        end = t-1
+                # Within Modification indices
+                for t in range(end, len(outputList)):
+                    stest = 0
+                    if "MODEL MODIFICATION INDICES" in outputList[t]:
+                        start = t
+                        stest = 1
                         break
-                self.wmi = "\n".join(outputList[start:end])
-                self.wmi = removeBlanks(self.wmi)
+                if stest == 1:
+                    for t in range(start, len(outputList)):
+                        if "Between Level" in outputList[t]:
+                            end = t - 1
+                            break
+                    self.wmi = "\n".join(outputList[start:end])
+                    self.wmi = removeBlanks(self.wmi)
 
-# Between level modification indices
-            start = end
-            if (stest == 1):
-                for t in range(start, len(outputList)):
-                    if ("Beginning Time" in outputList[t] or "TECHNICAL" in outputList[t]):
-                        end = t-1
-                        break
-                self.bmi = "\n".join(outputList[start:end])
-                self.bmi = removeBlanks(self.bmi)
+                # Between level modification indices
+                start = end
+                if stest == 1:
+                    for t in range(start, len(outputList)):
+                        if "Beginning Time" in outputList[t] or "TECHNICAL" in outputList[t]:
+                            end = t - 1
+                            break
+                    self.bmi = "\n".join(outputList[start:end])
+                    self.bmi = removeBlanks(self.bmi)
 
-# Replacing variable names
-# In the Coefficients section, initially room for 17
-#    A) Increasing overall width from 61 to 75 = gain of 14
-# In the Modification indices section, 
-# there is initially room for 2 vars X 10 characters
-#    A) Increasing overall width from 67 to 77 = gain of 5 for each var
-#    B) Drop STD EPC = gain of 6 for each var
-#    C) Change "StdYX E.P.C." to "StdYX EPC" = gain of 2 for each var
-# Making all variables length of 23
+        # Replacing variable names
+        # In the Coefficients section, initially room for 17
+        #    A) Increasing overall width from 61 to 75 = gain of 14
+        # In the Modification indices section, 
+        # there is initially room for 2 vars X 10 characters
+        #    A) Increasing overall width from 67 to 77 = gain of 5 for each var
+        #    B) Drop STD EPC = gain of 6 for each var
+        #    C) Change "StdYX E.P.C." to "StdYX EPC" = gain of 2 for each var
+        # Making all variables length of 23
 
-# Variables
+        # Variables
         Mplus.extend(slopes)
         SPSS.extend(slopes)
         for var1, var2 in zip(Mplus, SPSS):
-            var1 += " "*(8-len(var1))
+            var1 += " " * (8 - len(var1))
             var1 = " " + var1 + " "
-            if (len(var2) < 23):
-                var2 += " "*(23-len(var2))
+            if len(var2) < 23:
+                var2 += " " * (23 - len(var2))
             else:
                 var2 = var2[:23]
             var2 = " " + var2 + " "
 
-            if (self.wmeasurement != None):
+            if self.wmeasurement is not None:
                 self.wmeasurement = self.wmeasurement.replace(var1.upper(), var2)
-            if (self.wcoefficients != None):
+            if self.wcoefficients is not None:
                 self.wcoefficients = self.wcoefficients.replace(var1.upper(), var2)
-            if (self.wcovariances != None):
+            if self.wcovariances is not None:
                 self.wcovariances = self.wcovariances.replace(var1.upper(), var2)
-            if (self.wdescriptives != None):
+            if self.wdescriptives is not None:
                 self.wdescriptives = self.wdescriptives.replace(var1.upper(), var2)
-            if (self.Zwmeasurement != None):
+            if self.Zwmeasurement is not None:
                 self.Zwmeasurement = self.Zwmeasurement.replace(var1.upper(), var2)
-            if (self.Zwcoefficients != None):
+            if self.Zwcoefficients is not None:
                 self.Zwcoefficients = self.Zwcoefficients.replace(var1.upper(), var2)
-            if (self.Zwcovariances != None):
+            if self.Zwcovariances is not None:
                 self.Zwcovariances = self.Zwcovariances.replace(var1.upper(), var2)
-            if (self.Zwdescriptives != None):
+            if self.Zwdescriptives is not None:
                 self.Zwdescriptives = self.Zwdescriptives.replace(var1.upper(), var2)
 
-            if (self.bmeasurement != None):
+            if self.bmeasurement is not None:
                 self.bmeasurement = self.bmeasurement.replace(var1.upper(), var2)
-            if (self.bcoefficients != None):
+            if self.bcoefficients is not None:
                 self.bcoefficients = self.bcoefficients.replace(var1.upper(), var2)
-            if (self.bcovariances != None):
+            if self.bcovariances is not None:
                 self.bcovariances = self.bcovariances.replace(var1.upper(), var2)
-            if (self.bdescriptives != None):
+            if self.bdescriptives is not None:
                 self.bdescriptives = self.bdescriptives.replace(var1.upper(), var2)
-            if (self.Zbmeasurement != None):
+            if self.Zbmeasurement is not None:
                 self.Zbmeasurement = self.Zbmeasurement.replace(var1.upper(), var2)
-            if (self.Zbcoefficients != None):
+            if self.Zbcoefficients is not None:
                 self.Zbcoefficients = self.Zbcoefficients.replace(var1.upper(), var2)
-            if (self.Zbcovariances != None):
+            if self.Zbcovariances is not None:
                 self.Zbcovariances = self.Zbcovariances.replace(var1.upper(), var2)
-            if (self.Zbdescriptives != None):
+            if self.Zbdescriptives is not None:
                 self.Zbdescriptives = self.Zbdescriptives.replace(var1.upper(), var2)
 
-# Within MI section
-        if (self.wmi != None and
-not ("THE STANDARD ERRORS OF THE MODEL PARAMETER ESTIMATES COULD NOT" 
-in self.warnings)):
+        # Within MI section
+        if self.wmi is not None and not ("THE STANDARD ERRORS OF THE MODEL PARAMETER ESTIMATES COULD NOT" in self.warnings):
             for var1, var2 in zip(Mplus, SPSS):
-                if (len(var2) > 23):
+                if len(var2) > 23:
                     var2 = var2[:23]
                 else:
                     var1 = var1 + " "
                     var2 = var2 + " "
                 self.wmi = self.wmi.replace(var1.upper(), var2)
-            self.wmi = self.wmi.replace("""M.I.     E.P.C.  Std E.P.C.  StdYX E.P.C.""",
-"""                          MI         EPC   StdYX EPC""")
+            self.wmi = self.wmi.replace("""M.I.     E.P.C.  Std E.P.C.  StdYX E.P.C.""", """                          MI         EPC   StdYX EPC""")
             newMI = []
             miLines = self.wmi.split("\n")
             for line in miLines:
-                if (" ON " in line or " BY " in line or " WITH " in line):
+                if " ON " in line or " BY " in line or " WITH " in line:
                     miWords = line.split()
-                    newLine = miWords[0] + " "*(23-len(miWords[0]))
-                    newLine += " " + miWords[1] + " "*(5-len(miWords[1]))
-                    newLine += miWords[2] + " "*(23-len(miWords[2]))
-                    newLine += " "*(8-len(miWords[3])) + miWords[3] + "  "
-                    newLine += " "*(8-len(miWords[4])) + miWords[4] + "  "
-                    newLine += " "*(8-len(miWords[6])) + miWords[6] + "  "
+                    newLine = miWords[0] + " " * (23 - len(miWords[0]))
+                    newLine += " " + miWords[1] + " " * (5 - len(miWords[1]))
+                    newLine += miWords[2] + " " * (23 - len(miWords[2]))
+                    newLine += " " * (8 - len(miWords[3])) + miWords[3] + "  "
+                    newLine += " " * (8 - len(miWords[4])) + miWords[4] + "  "
+                    newLine += " " * (8 - len(miWords[6])) + miWords[6] + "  "
                     newMI.append(newLine)
                 else:
                     newMI.append(line)
             self.wmi = "\n".join(newMI)
 
-# Between MI section
-        if (self.bmi != None and
-not ("THE STANDARD ERRORS OF THE MODEL PARAMETER ESTIMATES COULD NOT" 
-in self.warnings)):
+        # Between MI section
+        if self.bmi is not None and not ("THE STANDARD ERRORS OF THE MODEL PARAMETER ESTIMATES COULD NOT" in self.warnings):
             for var1, var2 in zip(Mplus, SPSS):
-                if (len(var2) > 23):
+                if len(var2) > 23:
                     var2 = var2[:23]
                 else:
                     var1 = var1 + " "
                     var2 = var2 + " "
                 self.bmi = self.bmi.replace(var1.upper(), var2)
-            self.bmi = self.bmi.replace("""M.I.     E.P.C.  Std E.P.C.  StdYX E.P.C.""",
-"""                          MI         EPC   StdYX EPC""")
+            self.bmi = self.bmi.replace("""M.I.     E.P.C.  Std E.P.C.  StdYX E.P.C.""", """                          MI         EPC   StdYX EPC""")
             newMI = []
             miLines = self.bmi.split("\n")
             for line in miLines:
-                if ( (" ON " in line or " BY " in line or " WITH " in line) and 
-("/" not in line)):
+                if (" ON " in line or " BY " in line or " WITH " in line) and ("/" not in line):
                     miWords = line.split()
-                    newLine = miWords[0] + " "*(23-len(miWords[0]))
-                    newLine += " " + miWords[1] + " "*(5-len(miWords[1]))
-                    newLine += miWords[2] + " "*(23-len(miWords[2]))
-                    newLine += " "*(8-len(miWords[3])) + miWords[3] + "  "
-                    newLine += " "*(8-len(miWords[4])) + miWords[4] + "  "
-                    newLine += " "*(8-len(miWords[6])) + miWords[6] + "  "
+                    newLine = miWords[0] + " " * (23 - len(miWords[0]))
+                    newLine += " " + miWords[1] + " " * (5 - len(miWords[1]))
+                    newLine += miWords[2] + " " * (23 - len(miWords[2]))
+                    newLine += " " * (8 - len(miWords[3])) + miWords[3] + "  "
+                    newLine += " " * (8 - len(miWords[4])) + miWords[4] + "  "
+                    newLine += " " * (8 - len(miWords[6])) + miWords[6] + "  "
                     newMI.append(newLine)
                 else:
                     newMI.append(line)
             self.bmi = "\n".join(newMI)
 
-        if (self.newParam != None):
+        if self.newParam is not None:
             newNP = ["New/Additional Parameters"]
             npLines = self.newParam.split("\n")
             for line in npLines[1:]:
-                if (len(line) > 1):
+                if len(line) > 1:
                     firstWord = line.split()[0]
-                    line = line.replace(firstWord, firstWord + " "*15)
+                    line = line.replace(firstWord, firstWord + " " * 15)
                     newNP.append(line)
-            self.newParam = "\n".join(newNP)                     
+            self.newParam = "\n".join(newNP)
 
-# Print function
+    # Print function
     def toSPSSoutput(self):
         spss.Submit("title '" + self.label + "'.")
         spss.Submit("title 'SUMMARY'.")
-        print self.summary
+        print(self.summary)
         spss.Submit("title 'WARNINGS'.")
-        print self.warnings
-        if ("MODEL ESTIMATION TERMINATED NORMALLY" in self.warnings):
+        print(self.warnings)
+        if "MODEL ESTIMATION TERMINATED NORMALLY" in self.warnings:
             spss.Submit("title 'FIT STATISTICS'.")
-            print self.fit
-# Unstandardized Within
-        if (self.wmeasurement != None):
+            print(self.fit)
+        
+        # Unstandardized Within
+        if self.wmeasurement is not None:
             spss.Submit("title 'UNSTANDARDIZED WITHIN MEASUREMENT MODEL'.")
-            print "Unstandardized Within"
-            print self.header
-            print self.wmeasurement
-        if (self.wcoefficients != None):
+            print("Unstandardized Within")
+            print(self.header)
+            print(self.wmeasurement)
+        if self.wcoefficients is not None:
             spss.Submit("title 'UNSTANDARDIZED WITHIN COEFFICIENTS'.")
-            print "Unstandardized Within"
-            print self.header
-            print self.wcoefficients
-        if (self.wcovariances != None):
+            print("Unstandardized Within")
+            print(self.header)
+            print(self.wcoefficients)
+        if self.wcovariances is not None:
             spss.Submit("title 'UNSTANDARDIZED WITHIN COVARIANCES'.")
-            print "Unstandardized Within"
-            print self.header
-            print self.wcovariances
+            print("Unstandardized Within")
+            print(self.header)
+            print(self.wcovariances)
         spss.Submit("title 'UNSTANDARDIZED WITHIN DESCRIPTIVES'.")
-        print "Unstandardized Within"
-        print self.header
-        print self.wdescriptives
-# Unstandardized Between
-        if (self.bmeasurement != None):
+        print("Unstandardized Within")
+        print(self.header)
+        print(self.wdescriptives)
+        
+        # Unstandardized Between
+        if self.bmeasurement is not None:
             spss.Submit("title 'UNSTANDARDIZED BETWEEN MEASUREMENT MODEL'.")
-            print "Unstandardized Between"
-            print self.header
-            print self.bmeasurement
-        if (self.bcoefficients != None):
+            print("Unstandardized Between")
+            print(self.header)
+            print(self.bmeasurement)
+        if self.bcoefficients is not None:
             spss.Submit("title 'UNSTANDARDIZED BETWEEN COEFFICIENTS'.")
-            print "Unstandardized Between"
-            print self.header
-            print self.bcoefficients
-        if (self.bcovariances != None):
+            print("Unstandardized Between")
+            print(self.header)
+            print(self.bcoefficients)
+        if self.bcovariances is not None:
             spss.Submit("title 'UNSTANDARDIZED BETWEEN COVARIANCES'.")
-            print "Unstandardized Between"
-            print self.header
-            print self.bcovariances
+            print("Unstandardized Between")
+            print(self.header)
+            print(self.bcovariances)
         spss.Submit("title 'UNSTANDARDIZED BETWEEN DESCRIPTIVES'.")
-        print "Unstandardized Between"
-        print self.header
-        print self.bdescriptives
-        if (self.newParam != None):
+        print("Unstandardized Between")
+        print(self.header)
+        print(self.bdescriptives)
+        if self.newParam is not None:
             spss.Submit("title 'NEW/ADDITIONAL PARAMETERS'.")
-            print self.header
-            print self.newParam
-            
-# Standardized Within
-        if (self.Zwmeasurement != None):
+            print(self.header)
+            print(self.newParam)
+        
+        # Standardized Within
+        if self.Zwmeasurement is not None:
             spss.Submit("title 'STANDARDIZED WITHIN MEASUREMENT MODEL'.")
-            print "Standardized Within"
-            print self.header
-            print self.Zwmeasurement
-        if (self.Zwcoefficients != None):
+            print("Standardized Within")
+            print(self.header)
+            print(self.Zwmeasurement)
+        if self.Zwcoefficients is not None:
             spss.Submit("title 'STANDARDIZED WITHIN COEFFICIENTS'.")
-            print "Standardized Within"
-            print self.header
-            print self.Zwcoefficients
-        if (self.Zwcovariances != None):
+            print("Standardized Within")
+            print(self.header)
+            print(self.Zwcoefficients)
+        if self.Zwcovariances is not None:
             spss.Submit("title 'STANDARDIZED WITHIN COVARIANCES'.")
-            print "Standardized Within"
-            print self.header
-            print self.Zwcovariances
-        if (self.Zwdescriptives != None):
+            print("Standardized Within")
+            print(self.header)
+            print(self.Zwcovariances)
+        if self.Zwdescriptives is not None:
             spss.Submit("title 'STANDARDIZED WITHIN DESCRIPTIVES'.")
-            print "Standardized Within"
-            print self.header
-            print self.Zwdescriptives
+            print("Standardized Within")
+            print(self.header)
+            print(self.Zwdescriptives)
 
-# Standardized Between
-        if (self.Zbmeasurement != None):
+        # Standardized Between
+        if self.Zbmeasurement is not None:
             spss.Submit("title 'STANDARDIZED BETWEEN MEASUREMENT MODEL'.")
-            print "Standardized Between"
-            print self.header
-            print self.Zbmeasurement
-        if (self.Zbcoefficients != None):
+            print("Standardized Between")
+            print(self.header)
+            print(self.Zbmeasurement)
+        if self.Zbcoefficients is not None:
             spss.Submit("title 'STANDARDIZED BETWEEN COEFFICIENTS'.")
-            print "Standardized Between"
-            print self.header
-            print self.Zbcoefficients
-        if (self.Zbcovariances != None):
+            print("Standardized Between")
+            print(self.header)
+            print(self.Zbcoefficients)
+        if self.Zbcovariances is not None:
             spss.Submit("title 'STANDARDIZED BETWEEN COVARIANCES'.")
-            print "Standardized Between"
-            print self.header
-            print self.Zbcovariances
-        if (self.Zbdescriptives != None):
+            print("Standardized Between")
+            print(self.header)
+            print(self.Zbcovariances)
+        if self.Zbdescriptives is not None:
             spss.Submit("title 'STANDARDIZED BETWEEN DESCRIPTIVES'.")
-            print "Standardized Between"
-            print self.header
-            print self.Zbdescriptives
+            print("Standardized Between")
+            print(self.header)
+            print(self.Zbdescriptives)
 
-        if (self.wr2 != None):
+        if self.wr2 is not None:
             spss.Submit("title 'WITHIN R-SQUARES'.")
-            print self.wr2
-        if (self.br2 != None):
+            print(self.wr2)
+        if self.br2 is not None:
             spss.Submit("title 'BETWEEN R-SQUARES'.")
-            print self.br2
-        if (self.wmi != None):
+            print(self.br2)
+        if self.wmi is not None:
             spss.Submit("title 'WITHIN MODIFICATION INDICES'.")
-            print self.wmi     
-        if (self.bmi != None):
+            print(self.wmi)
+        if self.bmi is not None:
             spss.Submit("title 'BETWEEN MODIFICATION INDICES'.")
-            print self.bmi     
+            print(self.bmi)
 
-# Save coefficients to dataset
-    def toSPSSdata(self, datasetName, datasetMeans, datasetIntercepts, 
-datasetVariances, datasetResidualV, estimator, labelList = []):
-# Determine active data set so we can return to it when finished
+    # Save coefficients to dataset
+    def toSPSSdata(self, datasetName, datasetMeans, datasetIntercepts, datasetVariances, datasetResidualV, estimator, labelList=[]):
+        # Determine active data set so we can return to it when finished
         activeName = spss.ActiveDataset()
-# Set up data set if it doesn't already exist
-        tag,err = spssaux.createXmlOutput('Dataset Display',
-omsid='Dataset Display', subtype='Datasets')
+        
+        # Set up data set if it doesn't already exist
+        tag, err = spssaux.createXmlOutput('Dataset Display', omsid='Dataset Display', subtype='Datasets')
         datasetList = spssaux.getValuesFromXmlWorkspace(tag, 'Datasets')
 
-        if (datasetName not in datasetList):
+        if datasetName not in datasetList:
             spss.StartDataStep()
             datasetObj = spss.Dataset(name=None)
             dsetname = datasetObj.name
             datasetObj.varlist.append("wbLevel", 50)
             datasetObj.varlist.append("Outcome", 50)
             datasetObj.varlist.append("Predictor", 50)
-            if (estimator == "BAYES"):
+            if estimator == "BAYES":
                 datasetObj.varlist.append("b_Coefficient", 0)
                 datasetObj.varlist.append("b_PostSD", 0)
                 datasetObj.varlist.append("b_p", 0)
@@ -1645,307 +1603,285 @@ omsid='Dataset Display', subtype='Datasets')
                 datasetObj.varlist.append("beta_p", 0)
             spss.EndDataStep()
             submitstring = """dataset activate {0}.
-dataset name {1}.""".format(dsetname, datasetName)
+            dataset name {1}.""".format(dsetname, datasetName)
             spss.Submit(submitstring)
 
         spss.StartDataStep()
-        datasetObj = spss.Dataset(name = datasetName)
+        datasetObj = spss.Dataset(name=datasetName)
         spss.SetActive(datasetObj)
 
-# Label variables
-        variableList =[]
+        # Label variables
+        variableList = []
         for t in range(spss.GetVariableCount()):
             variableList.append(spss.GetVariableName(t))
         for t in range(len(labelList)):
-            if ("label{0}".format(str(t)) not in variableList):
+            if "label{0}".format(str(t)) not in variableList:
                 datasetObj.varlist.append("label{0}".format(str(t)), 50)
         spss.EndDataStep()
 
-# Set variables to f8.3
-        if (estimator == "BAYES"):
+        # Set variables to f8.3
+        if estimator == "BAYES":
             submitstring = "alter type b_Coefficient to beta_upper (f8.3)."
         else:
             submitstring = "alter type b_Coefficient to beta_p (f8.3)."
         spss.Submit(submitstring)
 
-# Get coefficients
+        # Get coefficients
         lList = ["WITHIN", "BETWEEN"]
-        cList = [getCoefficients(self.wcoefficients), 
-getCoefficients(self.bcoefficients)]
-        if (self.Zwcoefficients != None and self.Zbcoefficients != None):
-            zList = [getCoefficients(self.Zwcoefficients),
-getCoefficients(self.Zbcoefficients)]
+        cList = [getCoefficients(self.wcoefficients), getCoefficients(self.bcoefficients)]
+        if self.Zwcoefficients is not None and self.Zbcoefficients is not None:
+            zList = [getCoefficients(self.Zwcoefficients), getCoefficients(self.Zbcoefficients)]
         else:
             zList = [None, None]
-# Determine values for dataset
+        
+        # Determine values for dataset
         dataValues = []
         for l, c, z in zip(lList, cList, zList):
             for t in range(len(c)):
                 rowList = [l]
                 rowList.extend(c[t])
-                if (z == None):
-                    rowList.extend([None]*4)
+                if z is None:
+                    rowList.extend([None] * 4)
                 else:
                     rowList.extend(z[t][2:])
                 rowList.extend(labelList)
                 dataValues.append(rowList)    
 
-# Dataset Means
-        if (datasetMeans == True):
+        # Dataset Means
+        if datasetMeans:
             lList = ["WITHIN", "BETWEEN"]
             start = ["Means"]
             stop = ["Intercepts", "Variances", "Residual"]
-            cList = [getStats(self.wdescriptives, start, stop), 
-getStats(self.bdescriptives, start, stop)]
+            cList = [getStats(self.wdescriptives, start, stop), getStats(self.bdescriptives, start, stop)]
 
-            for l, c in zip (lList, cList):
+            for l, c in zip(lList, cList):
                 for t in range(len(c)):
                     rowList = c[t]
                     rowList.insert(0, l)
                     rowList.insert(2, "Mean")
-                    rowList.extend([None]*4)
+                    rowList.extend([None] * 4)
                     rowList.extend(labelList)
                     dataValues.append(rowList) 
 
-# Dataset Intercepts
-        if (datasetIntercepts == True):
+        # Dataset Intercepts
+        if datasetIntercepts:
             lList = ["WITHIN", "BETWEEN"]
             start = ["Intercepts"]
             stop = ["Variances", "Residual"]
-            cList = [getStats(self.wdescriptives, start, stop), 
-getStats(self.bdescriptives, start, stop)]
+            cList = [getStats(self.wdescriptives, start, stop), getStats(self.bdescriptives, start, stop)]
 
-            for l, c in zip (lList, cList):
+            for l, c in zip(lList, cList):
                 for t in range(len(c)):
                     rowList = c[t]
                     rowList.insert(0, l)
                     rowList.insert(2, "Intercept")
-                    rowList.extend([None]*4)
+                    rowList.extend([None] * 4)
                     rowList.extend(labelList)
                     dataValues.append(rowList) 
 
-# Dataset Variances
-        if (datasetVariances == True):
+        # Dataset Variances
+        if datasetVariances:
             lList = ["WITHIN", "BETWEEN"]
             start = ["Variances"]
             stop = ["Residual"]
-            cList = [getStats(self.wdescriptives, start, stop), 
-getStats(self.bdescriptives, start, stop)]
+            cList = [getStats(self.wdescriptives, start, stop), getStats(self.bdescriptives, start, stop)]
 
-            for l, c in zip (lList, cList):
+            for l, c in zip(lList, cList):
                 for t in range(len(c)):
                     rowList = c[t]
                     rowList.insert(0, l)
                     rowList.insert(2, "Variance")
-                    rowList.extend([None]*4)
+                    rowList.extend([None] * 4)
                     rowList.extend(labelList)
                     dataValues.append(rowList) 
 
-# Dataset Residual Variances
-        if (datasetResidualV == True):
+        # Dataset Residual Variances
+        if datasetResidualV:
             lList = ["WITHIN", "BETWEEN"]
             start = ["Residual"]
             stop = ["XXX"]
-            cList = [getStats(self.wdescriptives, start, stop), 
-getStats(self.bdescriptives, start, stop)]
+            cList = [getStats(self.wdescriptives, start, stop), getStats(self.bdescriptives, start, stop)]
 
-            for l, c in zip (lList, cList):
+            for l, c in zip(lList, cList):
                 for t in range(len(c)):
                     rowList = c[t]
                     rowList.insert(0, l)
                     rowList.insert(2, "ResidualVariance")
-                    rowList.extend([None]*4)
+                    rowList.extend([None] * 4)
                     rowList.extend(labelList)
                     dataValues.append(rowList)
 
-# Put values in dataset
+        # Put values in dataset
         spss.StartDataStep()
-        datasetObj = spss.Dataset(name = datasetName)
+        datasetObj = spss.Dataset(name=datasetName)
         for t in dataValues:
             datasetObj.cases.append(t)
         spss.EndDataStep()
 
-# Return to original data set
+        # Return to original data set
         spss.StartDataStep()
-        datasetObj = spss.Dataset(name = activeName)
+        datasetObj = spss.Dataset(name=activeName)
         spss.SetActive(datasetObj)
         spss.EndDataStep()
 
-def MplusTwoLevel(inpfile, modellabel = "MplusTwoLevel", 
-runModel = True, viewOutput = True, suppressSPSS = False,
-withinLatent = None, withinLatentFixed = None, withinModel = None, withinMeans = None, 
-withinVar = None, withinCovar = None, withinCovEndo = False, withinCovExo = True, 
-withinIdentifiers = None, withinMeanIdentifiers = None, withinSlopes = None,
-betweenLatent = None, betweenLatentFixed = None, betweenModel = None, 
-betweenMeans = None, betweenVar = None, betweenCovar = None, 
-betweenCovEndo = False, betweenCovExo = True, 
-betweenIdentifiers = None, betweenMeanIdentifiers = None,
-estimator = None, useobservations = None, 
-wald = None, constraint = None, 
-montecarlo = None, bootstrap = None, repse = None,
-categorical = None, censored = None, count = None, nominal = None,
-groupmean = None, grandmean = None,
-cluster = None, complex = None, weight = None, 
-datasetName = None, datasetMeans = False, datasetIntercepts = False, 
-datasetVariances = False, datasetResidualV = False, 
-datasetLabels = [], miThreshold = 10, waittime = 5):
+def MplusTwoLevel(inpfile, modellabel="MplusTwoLevel", 
+                  runModel=True, viewOutput=True, suppressSPSS=False,
+                  withinLatent=None, withinLatentFixed=None, withinModel=None, withinMeans=None, 
+                  withinVar=None, withinCovar=None, withinCovEndo=False, withinCovExo=True, 
+                  withinIdentifiers=None, withinMeanIdentifiers=None, withinSlopes=None,
+                  betweenLatent=None, betweenLatentFixed=None, betweenModel=None, 
+                  betweenMeans=None, betweenVar=None, betweenCovar=None, 
+                  betweenCovEndo=False, betweenCovExo=True, 
+                  betweenIdentifiers=None, betweenMeanIdentifiers=None,
+                  estimator=None, starts=None, useobservations=None, 
+                  wald=None, constraint=None, 
+                  montecarlo=None, bootstrap=None, repse=None,
+                  categorical=None, censored=None, count=None, nominal=None,
+                  groupmean=None, grandmean=None,
+                  cluster=None, complex=None, weight=None, 
+                  datasetName=None, datasetMeans=False, datasetIntercepts=False, 
+                  datasetVariances=False, datasetResidualV=False, 
+                  datasetLabels=[], miThreshold=10, processors=None, waittime=5):
 
     spss.Submit("display scratch.")
 
-# Redirect output
-    if (suppressSPSS == True):
+    # Redirect output
+    if suppressSPSS:
         submitstring = """OMS /SELECT ALL EXCEPT = [WARNINGS] 
         /DESTINATION VIEWER = NO 
         /TAG = 'NoJunk'."""
         spss.Submit(submitstring)
 
-# Find directory and filename
+    # Find directory and filename
     for t in range(len(inpfile)):
-        if (inpfile[-t] == "/"):
+        if inpfile[-t] == "/":
             break
     outdir = inpfile[:-t+1]
     fname, fext = os.path.splitext(inpfile[-(t-1):])
 
-# Obtain list of variables in data set
+    # Obtain list of variables in data set
     SPSSvariables = []
     SPSSvariablesCaps = []
     for varnum in range(spss.GetVariableCount()):
         SPSSvariables.append(spss.GetVariableName(varnum))
         SPSSvariablesCaps.append(spss.GetVariableName(varnum).upper())
 
-# Obtain lists of latent variables
+    # Obtain lists of latent variables
     withinLatentVars = []
-    if (withinLatent != None):
+    if withinLatent is not None:
         for t in withinLatent:
             withinLatentVars.append(t[0].upper())
     betweenLatentVars = []
-    if (betweenLatent != None):
+    if betweenLatent is not None:
         for t in betweenLatent:
             betweenLatentVars.append(t[0].upper())
 
-# Obtain list of slope identifiers
+    # Obtain list of slope identifiers
     slopeVars = []
-    if (withinSlopes != None):
+    if withinSlopes is not None:
         for t in withinSlopes:
             slopeVars.append(t[1].upper())
 
-# Restore output
-    if (suppressSPSS == True):
+    # Restore output
+    if suppressSPSS:
         submitstring = """OMSEND TAG = 'NoJunk'."""
         spss.Submit(submitstring)
 
-# Check for errors
+    # Check for errors
     error = 0
-    if (fext.upper() != ".INP"):
-        print ("Error: Input file specification does not end with .inp")
+    if fext.upper() != ".INP":
+        print("Error: Input file specification does not end with .inp")
         error = 1
-    if (not os.path.exists(outdir)):
+    if not os.path.exists(outdir):
         print("Error: Output directory does not exist")
         error = 1
-    if (cluster == None):
-        print ("Error: No cluster variable identified")
+    if cluster is None:
+        print("Error: No cluster variable identified")
         error = 1
-    if (estimator != None):
+    if estimator is not None:
         estimator = estimator.upper()
-        if (estimator not in ["ML",
-"MLM",
-"MLMV",
-"MLR",
-"MLF",
-"MUML",
-"WLS",
-"WLSM",
-"WLSMV",
-"ULS",
-"ULSMV",
-"GLS",
-"BAYES"]):
+        if estimator not in ["ML", "MLM", "MLMV", "MLR", "MLF", "MUML", "WLS", "WLSM", "WLSMV", "ULS", "ULSMV", "GLS", "BAYES"]:
             print("Error: Estimator not valid")
             error = 1
         
     variableError = 0
     for var in withinLatentVars:
-        if (var in SPSSvariablesCaps):
+        if var in SPSSvariablesCaps:
             variableError = 1
             break
-    if (variableError == 1):
-            print "Error: Within latent variable name overlaps with existing variable name"
-            error = 1
+    if variableError == 1:
+        print("Error: Within latent variable name overlaps with existing variable name")
+        error = 1
     variableError = 0
     for var in betweenLatentVars:
-        if (var in SPSSvariablesCaps):
+        if var in SPSSvariablesCaps:
             variableError = 1
             break
-    if (variableError == 1):
-            print "Error: Between latent variable name overlaps with existing variable name"
-            error = 1
-    if (withinLatent != None):
+    if variableError == 1:
+        print("Error: Between latent variable name overlaps with existing variable name")
+        error = 1
+    if withinLatent is not None:
         variableError = 0
         for equation in withinLatent:
             for var in equation[1:]:
-                if (var.upper() not in SPSSvariablesCaps):
+                if var.upper() not in SPSSvariablesCaps:
                     variableError = 1
                     break
-        if (variableError == 1):
+        if variableError == 1:
             print("Error: Variable listed in within latent variable definition not in current data set")
             error = 1
-    if (betweenLatent != None):
+    if betweenLatent is not None:
         variableError = 0
         for equation in betweenLatent:
             for var in equation[1:]:
-                if (var.upper() not in SPSSvariablesCaps and var.upper() not in slopeVars):
+                if var.upper() not in SPSSvariablesCaps and var.upper() not in slopeVars:
                     variableError = 1
-        if (variableError == 1):
+        if variableError == 1:
             print("Error: Variable listed in between latent variable definition not in current data set")
             error = 1
-    if (withinLatent != None and betweenLatent != None):
+    if withinLatent is not None and betweenLatent is not None:
         variableError = 0
         for w in withinLatentVars:
             for b in betweenLatentVars:
-                if (w == b):
+                if w == b:
                     variableError = 1
-        if (variableError == 1):
-            print ("Error: Same name used for within and between latent variable definitions")
+        if variableError == 1:
+            print("Error: Same name used for within and between latent variable definitions")
     variableError = 0
-    if (withinModel != None):
+    if withinModel is not None:
         for equation in withinModel:
             for var in equation:
-                if (var.upper() not in SPSSvariablesCaps 
-and var.upper() not in withinLatentVars):
+                if var.upper() not in SPSSvariablesCaps and var.upper() not in withinLatentVars:
                     variableError = 1
-                    print "Missing " + var
-        if (variableError == 1):
+                    print("Missing " + var)
+        if variableError == 1:
             print("Error: Variable listed in within model not in current data set")
             error = 1
-    if (betweenModel != None):
+    if betweenModel is not None:
         variableError = 0
         for equation in betweenModel:
             for var in equation:
-                if (var.upper() not in SPSSvariablesCaps 
-and var.upper() not in slopeVars
-and var.upper() not in betweenLatentVars
-and var.upper() not in withinLatentVars):
+                if var.upper() not in SPSSvariablesCaps and var.upper() not in slopeVars and var.upper() not in betweenLatentVars and var.upper() not in withinLatentVars:
                     variableError = 1
-                    print "Missing " + var
-        if (variableError == 1):
+                    print("Missing " + var)
+        if variableError == 1:
             print("Error: Variable listed in between model not in current data set")
             error = 1
 
-    if (error == 0):
-
-# Redirect output
-        if (suppressSPSS == True):
+    if error == 0:
+        # Redirect output
+        if suppressSPSS:
             submitstring = """OMS /SELECT ALL EXCEPT = [WARNINGS] 
-        /DESTINATION VIEWER = NO 
-        /TAG = 'NoJunk'."""
+            /DESTINATION VIEWER = NO 
+            /TAG = 'NoJunk'."""
             spss.Submit(submitstring)
 
-# Export data
+        # Export data
         dataname = outdir + fname + ".dat"
         MplusVariables = exportMplus(dataname)
- 
-# Define within latent variables using Mplus variables
-        if (withinLatent == None):
+    
+        # Define within latent variables using Mplus variables
+        if withinLatent is None:
             MplusWithinLatent = None
         else:
             MplusWithinLatent = []
@@ -1954,11 +1890,11 @@ and var.upper() not in withinLatentVars):
             for t in range(len(MplusWithinLatent)):
                 for i in range(len(MplusWithinLatent[t])):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (MplusWithinLatent[t][i] == s):
+                        if MplusWithinLatent[t][i] == s:
                             MplusWithinLatent[t][i] = m
                             
-# Convert withinLatentFixed to Mplus
-        if (withinLatentFixed == None):
+        # Convert withinLatentFixed to Mplus
+        if withinLatentFixed is None:
             MplusWithinLatentFixed = None
         else:
             MplusWithinLatentFixed = []
@@ -1969,14 +1905,14 @@ and var.upper() not in withinLatentVars):
                     j.append(i.upper())
                 fixedEquations.append(j) # appending the upper-case version of the equation
             for t in range(len(fixedEquations)):
-                for i in range (len(fixedEquations[t])):
-                    for s,m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (fixedEquations[t] [i] == s ):
-                            fixedEquations[t] [i] = m
-                MplusWithinLatentFixed.append([fixedEquations[t], withinLatentFixed[t] [1] ])
+                for i in range(len(fixedEquations[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if fixedEquations[t][i] == s:
+                            fixedEquations[t][i] = m
+                MplusWithinLatentFixed.append([fixedEquations[t], withinLatentFixed[t][1]])
                             
-# Define between latent variables using Mplus variables
-        if (betweenLatent == None):
+        # Define between latent variables using Mplus variables
+        if betweenLatent is None:
             MplusBetweenLatent = None
         else:
             MplusBetweenLatent = []
@@ -1985,11 +1921,11 @@ and var.upper() not in withinLatentVars):
             for t in range(len(MplusBetweenLatent)):
                 for i in range(len(MplusBetweenLatent[t])):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (MplusBetweenLatent[t][i] == s):
+                        if MplusBetweenLatent[t][i] == s:
                             MplusBetweenLatent[t][i] = m
 
-# Convert betweenLatentFixed to Mplus
-        if (betweenLatentFixed == None):
+        # Convert betweenLatentFixed to Mplus
+        if betweenLatentFixed is None:
             MplusBetweenLatentFixed = None
         else:
             MplusBetweenLatentFixed = []
@@ -2000,14 +1936,14 @@ and var.upper() not in withinLatentVars):
                     j.append(i.upper())
                 fixedEquations.append(j) # appending the upper-case version of the equation
             for t in range(len(fixedEquations)):
-                for i in range (len(fixedEquations[t])):
-                    for s,m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (fixedEquations[t] [i] == s ):
-                            fixedEquations[t] [i] = m
-                MplusBetweenLatentFixed.append([fixedEquations[t], betweenLatentFixed[t] [1] ])
+                for i in range(len(fixedEquations[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if fixedEquations[t][i] == s:
+                            fixedEquations[t][i] = m
+                MplusBetweenLatentFixed.append([fixedEquations[t], betweenLatentFixed[t][1]])
 
-# Define withinModel using Mplus variables
-        if (withinModel == None):
+        # Define withinModel using Mplus variables
+        if withinModel is None:
             MplusWithinModel = None
         else:
             MplusWithinModel = []
@@ -2016,11 +1952,11 @@ and var.upper() not in withinLatentVars):
             for t in range(len(MplusWithinModel)):
                 for i in range(len(MplusWithinModel[t])):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (MplusWithinModel[t][i] == s):
+                        if MplusWithinModel[t][i] == s:
                             MplusWithinModel[t][i] = m
 
-# Convert variables in betweenCovariance list to Mplus
-        if (withinCovar == None):
+        # Convert variables in betweenCovariance list to Mplus
+        if withinCovar is None:
             MplusWithinCovar = None
         else:
             MplusWithinCovar = []
@@ -2029,11 +1965,11 @@ and var.upper() not in withinLatentVars):
             for t in range(len(MplusWithinCovar)):
                 for i in range(2):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (MplusWithinCovar[t][i] == s):
+                        if MplusWithinCovar[t][i] == s:
                             MplusWithinCovar[t][i] = m
 
-# Convert withinIdentifiers to Mplus
-        if (withinIdentifiers == None):
+        # Convert withinIdentifiers to Mplus
+        if withinIdentifiers is None:
             MplusWithinIdentifiers = None
         else:
             MplusWithinIdentifiers = []
@@ -2046,12 +1982,12 @@ and var.upper() not in withinLatentVars):
             for t in range(len(idEquations)):
                 for i in range(len(idEquations[t])):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (idEquations[t][i] == s):
+                        if idEquations[t][i] == s:
                             idEquations[t][i] = m
                 MplusWithinIdentifiers.append([idEquations[t], withinIdentifiers[t][1]])
 
-# Convert within mean identifiers to Mplus
-        if (withinMeanIdentifiers == None):
+        # Convert within mean identifiers to Mplus
+        if withinMeanIdentifiers is None:
             MplusWithinMeanIdentifiers = None
         else:
             MplusWithinMeanIdentifiers = []
@@ -2060,12 +1996,12 @@ and var.upper() not in withinLatentVars):
                 idMeans.append(t[0].upper())
             for t in range(len(idMeans)):
                 for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                    if (idMeans[t] == s):
+                    if idMeans[t] == s:
                         idMeans[t] = m
                 MplusWithinMeanIdentifiers.append([idMeans[t], withinMeanIdentifiers[t][1]])                
 
-# Convert withinSlopes to Mplus
-        if (withinSlopes == None):
+        # Convert withinSlopes to Mplus
+        if withinSlopes is None:
             MplusWithinSlopes = None
         else:
             MplusWithinSlopes = []
@@ -2078,12 +2014,12 @@ and var.upper() not in withinLatentVars):
             for t in range(len(idEquations)):
                 for i in range(len(idEquations[t])):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (idEquations[t][i] == s):
+                        if idEquations[t][i] == s:
                             idEquations[t][i] = m
                 MplusWithinSlopes.append([idEquations[t], withinSlopes[t][1]])
 
-# Define betweenModel using Mplus variables
-        if (betweenModel == None):
+        # Define betweenModel using Mplus variables
+        if betweenModel is None:
             MplusBetweenModel = None
         else:
             MplusBetweenModel = []
@@ -2092,11 +2028,11 @@ and var.upper() not in withinLatentVars):
             for t in range(len(MplusBetweenModel)):
                 for i in range(len(MplusBetweenModel[t])):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (MplusBetweenModel[t][i] == s):
+                        if MplusBetweenModel[t][i] == s:
                             MplusBetweenModel[t][i] = m
 
-# Convert variables in betweenCovariance list to Mplus
-        if (betweenCovar == None):
+        # Convert variables in betweenCovariance list to Mplus
+        if betweenCovar is None:
             MplusBetweenCovar = None
         else:
             MplusBetweenCovar = []
@@ -2105,11 +2041,11 @@ and var.upper() not in withinLatentVars):
             for t in range(len(MplusBetweenCovar)):
                 for i in range(2):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (MplusBetweenCovar[t][i] == s):
+                        if MplusBetweenCovar[t][i] == s:
                             MplusBetweenCovar[t][i] = m
 
-# Convert betweenIdentifiers to Mplus
-        if (betweenIdentifiers == None):
+        # Convert betweenIdentifiers to Mplus
+        if betweenIdentifiers is None:
             MplusBetweenIdentifiers = None
         else:
             MplusBetweenIdentifiers = []
@@ -2122,12 +2058,12 @@ and var.upper() not in withinLatentVars):
             for t in range(len(idEquations)):
                 for i in range(len(idEquations[t])):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (idEquations[t][i] == s):
+                        if idEquations[t][i] == s:
                             idEquations[t][i] = m
                 MplusBetweenIdentifiers.append([idEquations[t], betweenIdentifiers[t][1]])
 
-# Convert between mean identifiers to Mplus
-        if (betweenMeanIdentifiers == None):
+        # Convert between mean identifiers to Mplus
+        if betweenMeanIdentifiers is None:
             MplusBetweenMeanIdentifiers = None
         else:
             MplusBetweenMeanIdentifiers = []
@@ -2136,12 +2072,12 @@ and var.upper() not in withinLatentVars):
                 idMeans.append(t[0].upper())
             for t in range(len(idMeans)):
                 for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                    if (idMeans[t] == s):
+                    if idMeans[t] == s:
                         idMeans[t] = m
                 MplusBetweenMeanIdentifiers.append([idMeans[t], betweenMeanIdentifiers[t][1]])  
 
-# Convert useobservations to Mplus
-        if (useobservations == None):
+        # Convert useobservations to Mplus
+        if useobservations is None:
             MplusUseobservations = None
         else:
             MplusUseobservations = useobservations
@@ -2149,25 +2085,25 @@ and var.upper() not in withinLatentVars):
                 z = re.compile(s, re.IGNORECASE)
                 MplusUseobservations = z.sub(m, MplusUseobservations)
 
-# Convert cluster variable to Mplus
-        if (cluster == None):
+        # Convert cluster variable to Mplus
+        if cluster is None:
             MplusCluster = None
         else:
             for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                if (cluster.upper() == s):
+                if cluster.upper() == s:
                     MplusCluster = m
 
-# Convert complex variable to Mplus
-        if (complex == None):
+        # Convert complex variable to Mplus
+        if complex is None:
             MplusComplex = None
         else:
             for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                if (complex.upper() == s):
+                if complex.upper() == s:
                     MplusComplex = m
 
-# Convert variable list arguments to Mplus
+        # Convert variable list arguments to Mplus
         lvarList = [categorical, censored, count, nominal, 
-groupmean, grandmean, withinVar, withinMeans, betweenVar, betweenMeans]
+                    groupmean, grandmean, withinVar, withinMeans, betweenVar, betweenMeans]
         MplusCategorical = []
         MplusCensored = []
         MplusCount = []
@@ -2179,108 +2115,108 @@ groupmean, grandmean, withinVar, withinMeans, betweenVar, betweenMeans]
         MplusBetweenVar = []
         MplusBetweenMeans = []
         lvarMplusList = [MplusCategorical, MplusCensored,
-MplusCount, MplusNominal, MplusGroupmean, MplusGrandmean,
-MplusWithinVar, MplusWithinMeans, MplusBetweenVar, MplusBetweenMeans]
+                         MplusCount, MplusNominal, MplusGroupmean, MplusGrandmean,
+                         MplusWithinVar, MplusWithinMeans, MplusBetweenVar, MplusBetweenMeans]
         for t in range(len(lvarList)):
-            if (lvarList[t] == None):
+            if lvarList[t] is None:
                 lvarMplusList[t] = None
             else:
                 for i in lvarList[t]:
                     lvarMplusList[t].append(i.upper())
                 for i in range(len(lvarMplusList[t])):
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                        if (lvarMplusList[t][i] == s):
+                        if lvarMplusList[t][i] == s:
                             lvarMplusList[t][i] = m
 
-# Convert weight variable to Mplus
-        if (weight == None):
+        # Convert weight variable to Mplus
+        if weight is None:
             MplusWeight = None
         else:
             for s, m in zip(SPSSvariablesCaps, MplusVariables):
-                if (weight.upper() == s):
+                if weight.upper() == s:
                     MplusWeight = m
 
-# Create input program
-        pathProgram = MplusPAprogram()
+        # Create input program
+        pathProgram = MplusTLprogram()
         pathProgram.setTitle("Created by MplusPathAnalysis")
         pathProgram.setData(dataname)
-        pathProgram.setVariable(MplusVariables, MplusWithinLatent, 
-MplusWithinModel, MplusWithinVar, slopeVars,
-MplusBetweenLatent, MplusBetweenModel, 
-MplusBetweenVar, MplusUseobservations, MplusCategorical, MplusCensored, 
-MplusCount, MplusNominal, MplusCluster, MplusComplex, MplusWeight)
+        pathProgram.setVariableTL(MplusVariables, MplusWithinLatent, 
+                                  MplusWithinModel, MplusWithinVar, slopeVars,
+                                  MplusBetweenLatent, MplusBetweenModel, 
+                                  MplusBetweenVar, MplusUseobservations, MplusCategorical, MplusCensored, 
+                                  MplusCount, MplusNominal, MplusCluster, MplusComplex, MplusWeight)
         pathProgram.setDefine(MplusGroupmean, MplusGrandmean)
         pathProgram.setAnalysis(MplusCluster, MplusComplex, MplusWithinSlopes, estimator,
-MplusWeight, montecarlo, bootstrap, repse)
+                                starts, MplusWeight, montecarlo, bootstrap, repse, processors)
         pathProgram.setModel(MplusWithinLatent, MplusWithinLatentFixed, MplusWithinModel, 
-MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, MplusWithinMeanIdentifiers,
-withinCovEndo, withinCovExo, MplusWithinSlopes, 
-MplusBetweenLatent, MplusBetweenLatentFixed, MplusBetweenModel, MplusBetweenMeans,
-MplusBetweenCovar, MplusBetweenIdentifiers, MplusBetweenMeanIdentifiers,
-betweenCovEndo, betweenCovExo,wald)
+                             MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, MplusWithinMeanIdentifiers,
+                             withinCovEndo, withinCovExo, MplusWithinSlopes, 
+                             MplusBetweenLatent, MplusBetweenLatentFixed, MplusBetweenModel, MplusBetweenMeans,
+                             MplusBetweenCovar, MplusBetweenIdentifiers, MplusBetweenMeanIdentifiers,
+                             betweenCovEndo, betweenCovExo, wald)
         pathProgram.setConstraint(constraint)    
         pathProgram.setOutput(MplusComplex, miThreshold, bootstrap)
         pathProgram.write(outdir + fname + ".inp")
 
-# Add latent variables to SPSSvariables lists
-        if (withinLatent != None):
+        # Add latent variables to SPSSvariables lists
+        if withinLatent is not None:
             for equation in withinLatent:
-                if (equation[0].upper() not in SPSSvariablesCaps):
+                if equation[0].upper() not in SPSSvariablesCaps:
                     SPSSvariables.append(equation[0])
                     SPSSvariablesCaps.append(equation[0].upper())
-        if (betweenLatent != None):
+        if betweenLatent is not None:
             for equation in betweenLatent:
-                if (equation[0].upper() not in SPSSvariablesCaps):            
+                if equation[0].upper() not in SPSSvariablesCaps:            
                     SPSSvariables.append(equation[0])
                     SPSSvariablesCaps.append(equation[0].upper())
 
-# Add latent variables to MplusVariable list
-        if (withinLatent != None):
+        # Add latent variables to MplusVariable list
+        if withinLatent is not None:
             for equation in withinLatent:
-                if (equation[0].upper() not in MplusVariables):            
+                if equation[0].upper() not in MplusVariables:            
                     MplusVariables.append(equation[0].upper())
-        if (betweenLatent != None):
+        if betweenLatent is not None:
             for equation in betweenLatent:
-                if (equation[0].upper() not in MplusVariables):            
+                if equation[0].upper() not in MplusVariables:            
                     MplusVariables.append(equation[0].upper())
 
-# Run input program
-        if (runModel == True):
+        # Run input program
+        if runModel:
             batchfile(outdir, fname)
             time.sleep(waittime)
 
-# Restore output
-        if (suppressSPSS == True):
+        # Restore output
+        if suppressSPSS:
             submitstring = """OMSEND TAG = 'NoJunk'."""
             spss.Submit(submitstring)
 
-# Parse output
-        if (viewOutput == True):
+        # Parse output
+        if viewOutput:
             pathOutput = MplusTLoutput(modellabel, outdir + fname + ".out", 
-    MplusVariables, SPSSvariables, slopeVars, complex, estimator)
+                                       MplusVariables, SPSSvariables, slopeVars, complex, estimator, starts)
             pathOutput.toSPSSoutput()
 
-# Redirect output
-            if (suppressSPSS == True):
+            # Redirect output
+            if suppressSPSS:
                 submitstring = """OMS /SELECT ALL EXCEPT = [WARNINGS] 
-        /DESTINATION VIEWER = NO 
-        /TAG = 'NoJunk'."""
+                /DESTINATION VIEWER = NO 
+                /TAG = 'NoJunk'."""
                 spss.Submit(submitstring)
 
-    # Create coefficient dataset
-            if (datasetName != None):
+            # Create coefficient dataset
+            if datasetName is not None and "MODEL ESTIMATION TERMINATED NORMALLY" in pathOutput.warnings:
                 pathOutput.toSPSSdata(datasetName, datasetMeans, 
-datasetIntercepts, datasetVariances, datasetResidualV, estimator,
-datasetLabels)
+                                      datasetIntercepts, datasetVariances, datasetResidualV, estimator,
+                                      datasetLabels)
 
-# Restore output
-            if (suppressSPSS == True):
+            # Restore output
+            if suppressSPSS:
                 submitstring = """OMSEND TAG = 'NoJunk'."""
                 spss.Submit(submitstring)
 
-# Replace titles
+    # Replace titles
     titleToPane()
-end program python.
+end program python3.
 set printback = on.
 
 ************
@@ -2331,7 +2267,12 @@ set printback = on.
 * 2021-05-09 Corrected section breaks when there are no regression coefs
 * 2021-05-09a Changed dataset values for Bayes estimation
 * 2021-05-10 Revised title for new/additional parameters
-COMMENT BOOKMARK;LINE_NUM=938;ID=2.
-COMMENT BOOKMARK;LINE_NUM=1034;ID=3.
-COMMENT BOOKMARK;LINE_NUM=1496;ID=5.
-COMMENT BOOKMARK;LINE_NUM=2202;ID=1.
+* 2022-02-13 Added processors argument
+* 2022-04-04 Added starts argument
+* 2022-04-19 Fixed output parsing when there are no predictors
+* 2023-07-23 Fixed between r2 end point
+* 2023-08-29 Does not try to save coefficients if the model does not converge
+* 2023-08-30 Set coefficient elements to -999 when undefined
+* 2024-01-03 Renamed twoLevel function so it doesn't conflict with MPA
+* 2024-05-28 Converted to Python 3
+COMMENT BOOKMARK;LINE_NUM=383;ID=1.
