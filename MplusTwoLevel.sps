@@ -1255,7 +1255,7 @@ class MplusTLoutput:
                         start = t
                         secexists = 1
                         break
-                if secexists == 1):
+                if secexists == 1:
                     for t in range(start, len(outputList)):
                         if re.search(r"\bWITH\b", outputList[t]) or re.search(r"\bMeans\b", outputList[t]) or re.search(r"\bVariances\b", outputList[t]):
                             end = t
@@ -2275,4 +2275,5 @@ set printback = on.
 * 2023-08-30 Set coefficient elements to -999 when undefined
 * 2024-01-03 Renamed twoLevel function so it doesn't conflict with MPA
 * 2024-05-28 Converted to Python 3
+* 2024-07-22 Corrected syntax error
 COMMENT BOOKMARK;LINE_NUM=383;ID=1.
