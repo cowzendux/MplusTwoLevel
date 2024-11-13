@@ -9,9 +9,11 @@
 * parts of the Mplus output into the SPSS output window.
 
 **** Usage: MplusTwoLevel(inpfile, modellabel, runModel, viewOutput, suppressSPSS,
-withinLatent, withinLatentFixed, withinModel, withinMeans, withinVar, withinCovar, 
+withinLatent, withinLatentFixed, withinLatentIdentifiers, 
+withinModel, withinMeans, withinVar, withinCovar, 
 withinCovEndo, withinCovExo, withinIdentifiers, withinMeanIdentifiers, withinSlopes,
-betweenLatent, betweenLatentFixed, betweenModel, betweenMeans, betweenVar, betweenCovar,
+betweenLatent, betweenLatentFixed, betweenLatentIdentifiers, 
+betweenModel, betweenMeans, betweenVar, betweenCovar,
 betweenCovEndo, betweenCovExo, 
 betweenIdentifiers, betweenMeanIdentifiers,
 estimator, starts, useobservations, wald, constraint,
@@ -19,7 +21,7 @@ montecarlo, bootstrap, repse,
 categorical, censored, count, nominal, groupmean, grandmean,
 cluster, complex, weight, 
 datasetName, datasetMeans, datasetIntercepts, datasetVariances, 
-datasetResidualV, datasetLabels, processors, waittime)
+datasetResidualV, newDatasetName, datasetLabels, processors, waittime)
 **** "inpfile" is a string identifying the directory and filename of
 * Mplus input file to be created by the program. This filename must end with
 * .inp . The data file will automatically be saved to the same directory. This
@@ -60,6 +62,12 @@ datasetResidualV, datasetLabels, processors, waittime)
 * the withinLatent statement. To do this, you may need to separate the 
 * observed values for a single latent variable into different lists. This defaults to None, 
 * which does not assign any fixed latent coefficients. 
+**** "withinLatentIdentifiers" is an optional argument provides a list of lists pairing 
+,* within latent coefficients with identifiers that can be used as part of a Wald Z test or
+* a Model Constraint calculation, or a model with parameters forced to be equal.
+* The coefficients part must specifically match a list in the "withinLatent" statement.
+* To do this, you may need to separate the predictors for a single latent variable 
+* into different lists. This defaults to None, which does not assign any identifiers. 
 **** "withinModel" is a list of lists identifying the equations in the within-cluster part
 * of your model.  First, you create a set of lists that each have the outcome as
 * the first element and then have the predictors as the following elements.
@@ -138,6 +146,12 @@ datasetResidualV, datasetLabels, processors, waittime)
 * the betweenLatent statement. To do this, you may need to separate the 
 * observed values for a single latent variable into different lists. This defaults to None, 
 * which does not assign any fixed latent coefficients. 
+**** "betweenLatentIdentifiers" is an optional argument provides a list of lists pairing 
+,* between latent coefficients with identifiers that can be used as part of a Wald Z test or
+* a Model Constraint calculation, or a model with parameters forced to be equal.
+* The coefficients part must specifically match a list in the "betweenLatent" statement.
+* To do this, you may need to separate the predictors for a single latent variable 
+* into different lists. This defaults to None, which does not assign any identifiers. 
 **** "betweenModel" is a list of lists identifying the equations in the between-cluster 
 * part of your model.  First, you create a set of lists that each have the outcome 
 * as the first element and then have the predictors as the following elements.
@@ -270,6 +284,9 @@ datasetResidualV, datasetLabels, processors, waittime)
 **** "datasetResidualV" is an optional argument that determines whether
 * the residual variances are included in the coefficient dataset. This is False
 * by default.
+**** "newDatasetName" is an optional argument that identifiers the name of
+* an SPSS dataset that should be used to record the tests of new/additional
+* parameters created using the "model contrast" command.
 **** "datasetLabels" is an optional argument that identifies a list of
 * labels that would be applied to the datasets.  This can be useful if 
 * you are appending the results from multiple analyses to the same dataset.
@@ -719,14 +736,17 @@ class MplusTLprogram:
         if processors is not None:
             self.analysis += "\nprocessors = {0};".format(processors)
 
-    def setModel(self, MplusWithinLatent, MplusWithinLatentFixed, MplusWithinModel, 
-                 MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, MplusWithinMeanIdentifiers,
+    def setModel(self, MplusWithinLatent, MplusWithinLatentFixed, MplusWithinLatentIdentifiers,
+                 MplusWithinModel, MplusWithinMeans, MplusWithinCovar, 
+                 MplusWithinIdentifiers, MplusWithinMeanIdentifiers,
                  withinEndo, withinExo, MplusWithinSlopes, 
-                 MplusBetweenLatent, MplusBetweenLatentFixed, MplusBetweenModel, MplusBetweenMeans,
+                 MplusBetweenLatent, MplusBetweenLatentFixed, MplusBetweenLatentIdentifiers,
+                 MplusBetweenModel, MplusBetweenMeans,
                  MplusBetweenCovar, MplusBetweenIdentifiers, MplusBetweenMeanIdentifiers,
                  betweenEndo, betweenExo, wald):
         
-        def modelCode(label, latent, latentFixed, model, means, covar, identifiers, meanIdentifiers,
+        def modelCode(label, latent, latentFixed, latentIdentifiers, 
+                      model, means, covar, identifiers, meanIdentifiers,
                       cEndo, cExo, slopes, slopeList):
             code = "%{0}%\n".format(label)
             # Latent variable definitions
@@ -743,6 +763,10 @@ class MplusTLprogram:
                         for t in latentFixed:
                             if equation == t[0]:
                                 curline += "@" + str(t[1])
+                    if latentIdentifiers is not None:
+                        for id in latentIdentifiers:
+                            if equation == id[0]:
+                                curline += " (" + id[1] + ")" 
                     code += curline + ";\n\n"                              
             
             # Regression equations
@@ -840,13 +864,15 @@ class MplusTLprogram:
                     slopeList.append(var)
         
         # Within Model
-        withinCode = modelCode("WITHIN", MplusWithinLatent, MplusWithinLatentFixed, 
+        withinCode = modelCode("WITHIN", MplusWithinLatent, 
+                               MplusWithinLatentFixed, MplusWithinLatentIdentifiers,
                                MplusWithinModel, MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, 
                                MplusWithinMeanIdentifiers, withinEndo, withinExo, MplusWithinSlopes, slopeList)
         self.model += withinCode
         
         # Between Model
-        betweenCode = modelCode("BETWEEN", MplusBetweenLatent, MplusBetweenLatentFixed,
+        betweenCode = modelCode("BETWEEN", MplusBetweenLatent, 
+                                MplusBetweenLatentFixed, MplusBetweenLatentIdentifiers,
                                 MplusBetweenModel, MplusBetweenMeans, MplusBetweenCovar, MplusBetweenIdentifiers, 
                                 MplusBetweenMeanIdentifiers, betweenEndo, betweenExo, None, slopeList)
         self.model += betweenCode
@@ -945,6 +971,26 @@ def getStats(outputBlock, startList, stopList):
                 if values2[0] in startList:
                     startRead = 1
     return stats
+    
+def getNewParam(outputBlock):
+    if outputBlock is None:
+        return None
+    else:
+        outputBlock2 = outputBlock.replace("\r", "")
+        outputBlock2 = outputBlock2.replace("*********", "-999")
+        blockList = outputBlock2.split("\n")
+        p = []
+        for t in range(len(blockList)):
+            values1 = blockList[t].split(" ")
+            values2 = [i for i in values1 if i]
+
+            if len(values2) > 2 and values2[0] != "Estimate":
+                line = [values2[0]]
+                for j in values2[1:]:
+                    if j != "*":
+                        line.append(float(j))
+                p.append(line)
+        return p
 
 class MplusTLoutput:
     def __init__(self, modellabel, filename, Mplus, SPSS, slopes, complex, estimator, starts):
@@ -1724,12 +1770,86 @@ class MplusTLoutput:
         spss.SetActive(datasetObj)
         spss.EndDataStep()
 
+    # Save new/additional parameters to dataset
+    def newToSPSSdata(self, estimator="ML", datasetName="MPAnew", labelList=[]):
+        # Determine active data set so we can return to it when finished
+        activeName = spss.ActiveDataset()
+        # Set up data set if it doesn't already exist
+        tag, err = spssaux.createXmlOutput('Dataset Display', omsid='Dataset Display', subtype='Datasets')
+        datasetList = spssaux.getValuesFromXmlWorkspace(tag, 'Datasets')
+    
+        if datasetName not in datasetList:
+            spss.StartDataStep()
+            datasetObj = spss.Dataset(name=None)
+            dsetname = datasetObj.name
+            datasetObj.varlist.append("Parameter", 50)
+            if estimator == "BAYES":
+                datasetObj.varlist.append("Estimate", 0)
+                datasetObj.varlist.append("PostSD", 0)
+                datasetObj.varlist.append("p", 0)
+                datasetObj.varlist.append("lower", 0)
+                datasetObj.varlist.append("upper", 0)
+            else:
+                datasetObj.varlist.append("estimate", 0)
+                datasetObj.varlist.append("SE", 0)
+                datasetObj.varlist.append("Ratio", 0)
+                datasetObj.varlist.append("p", 0)
+            spss.EndDataStep()
+            submitstring = """dataset activate {0}.
+    dataset name {1}.""".format(dsetname, datasetName)
+            spss.Submit(submitstring)
+    
+        spss.StartDataStep()
+        datasetObj = spss.Dataset(name=datasetName)
+        spss.SetActive(datasetObj)
+    
+        # Label variables
+        variableList = []
+        for t in range(spss.GetVariableCount()):
+            variableList.append(spss.GetVariableName(t))
+        for t in range(len(labelList)):
+            if "label{0}".format(str(t)) not in variableList:
+                datasetObj.varlist.append("label{0}".format(str(t)), 50)
+        spss.EndDataStep()
+    
+        # Set variables to f8.3
+        if estimator == "BAYES":
+            submitstring = "alter type Estimate to upper (f8.3)."
+        else:
+            submitstring = "alter type Estimate to p (f8.3)."
+        spss.Submit(submitstring)
+    
+        # Get coefficients
+        param = getNewParam(self.newParam)
+    
+        # Determine values for dataset
+        dataValues = []
+        for t in range(len(param)):
+            rowList = param[t]
+            rowList.extend(labelList)
+            dataValues.append(rowList)
+    
+        # Put values in dataset
+        spss.StartDataStep()
+        datasetObj = spss.Dataset(name=datasetName)
+        for t in dataValues:
+            datasetObj.cases.append(t)
+        spss.EndDataStep()
+    
+        # Return to original data set
+        spss.StartDataStep()
+        datasetObj = spss.Dataset(name=activeName)
+        spss.SetActive(datasetObj)
+        spss.EndDataStep()
+
 def MplusTwoLevel(inpfile, modellabel="MplusTwoLevel", 
                   runModel=True, viewOutput=True, suppressSPSS=False,
-                  withinLatent=None, withinLatentFixed=None, withinModel=None, withinMeans=None, 
+                  withinLatent=None, withinLatentFixed=None, withinLatentIdentifiers=None,
+                  withinModel=None, withinMeans=None, 
                   withinVar=None, withinCovar=None, withinCovEndo=False, withinCovExo=True, 
                   withinIdentifiers=None, withinMeanIdentifiers=None, withinSlopes=None,
-                  betweenLatent=None, betweenLatentFixed=None, betweenModel=None, 
+                  betweenLatent=None, betweenLatentFixed=None, betweenLatentIdentifiers=None,
+                  betweenModel=None, 
                   betweenMeans=None, betweenVar=None, betweenCovar=None, 
                   betweenCovEndo=False, betweenCovExo=True, 
                   betweenIdentifiers=None, betweenMeanIdentifiers=None,
@@ -1740,7 +1860,7 @@ def MplusTwoLevel(inpfile, modellabel="MplusTwoLevel",
                   groupmean=None, grandmean=None,
                   cluster=None, complex=None, weight=None, 
                   datasetName=None, datasetMeans=False, datasetIntercepts=False, 
-                  datasetVariances=False, datasetResidualV=False, 
+                  datasetVariances=False, datasetResidualV=False, newDatasetName=None,
                   datasetLabels=[], miThreshold=10, processors=None, waittime=5):
 
     spss.Submit("display scratch.")
@@ -1910,7 +2030,23 @@ def MplusTwoLevel(inpfile, modellabel="MplusTwoLevel",
                         if fixedEquations[t][i] == s:
                             fixedEquations[t][i] = m
                 MplusWithinLatentFixed.append([fixedEquations[t], withinLatentFixed[t][1]])
-                            
+
+        # Convert withinLatentIdentifiers to Mplus
+        if withinLatentIdentifiers is None:
+            MplusWithinLatentIdentifiers = None
+        else:
+            MplusWithinLatentIdentifiers = []
+            latentIdEquations = []
+            for t in withinLatentIdentifiers:
+                j = [i.upper() for i in t[0]]
+                latentIdEquations.append(j)
+            for t in range(len(latentIdEquations)):
+                for i in range(len(latentIdEquations[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if latentIdEquations[t][i] == s:
+                            latentIdEquations[t][i] = m
+                MplusWithinLatentIdentifiers.append([latentIdEquations[t], withinLatentIdentifiers[t][1]])
+                                            
         # Define between latent variables using Mplus variables
         if betweenLatent is None:
             MplusBetweenLatent = None
@@ -1941,6 +2077,22 @@ def MplusTwoLevel(inpfile, modellabel="MplusTwoLevel",
                         if fixedEquations[t][i] == s:
                             fixedEquations[t][i] = m
                 MplusBetweenLatentFixed.append([fixedEquations[t], betweenLatentFixed[t][1]])
+
+        # Convert betweenLatentIdentifiers to Mplus
+        if betweenLatentIdentifiers is None:
+            MplusBetweenLatentIdentifiers = None
+        else:
+            MplusBetweenLatentIdentifiers = []
+            latentIdEquations = []
+            for t in betweenLatentIdentifiers:
+                j = [i.upper() for i in t[0]]
+                latentIdEquations.append(j)
+            for t in range(len(latentIdEquations)):
+                for i in range(len(latentIdEquations[t])):
+                    for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                        if latentIdEquations[t][i] == s:
+                            latentIdEquations[t][i] = m
+                MplusBetweenLatentIdentifiers.append([latentIdEquations[t], betweenLatentIdentifiers[t][1]])
 
         # Define withinModel using Mplus variables
         if withinModel is None:
@@ -2148,10 +2300,12 @@ def MplusTwoLevel(inpfile, modellabel="MplusTwoLevel",
         pathProgram.setDefine(MplusGroupmean, MplusGrandmean)
         pathProgram.setAnalysis(MplusCluster, MplusComplex, MplusWithinSlopes, estimator,
                                 starts, MplusWeight, montecarlo, bootstrap, repse, processors)
-        pathProgram.setModel(MplusWithinLatent, MplusWithinLatentFixed, MplusWithinModel, 
+        pathProgram.setModel(MplusWithinLatent, MplusWithinLatentFixed, 
+                            MplusWithinLatentIdentifiers, MplusWithinModel, 
                              MplusWithinMeans, MplusWithinCovar, MplusWithinIdentifiers, MplusWithinMeanIdentifiers,
                              withinCovEndo, withinCovExo, MplusWithinSlopes, 
-                             MplusBetweenLatent, MplusBetweenLatentFixed, MplusBetweenModel, MplusBetweenMeans,
+                             MplusBetweenLatent, MplusBetweenLatentFixed, MplusBetweenLatentIdentifiers,
+                             MplusBetweenModel, MplusBetweenMeans,
                              MplusBetweenCovar, MplusBetweenIdentifiers, MplusBetweenMeanIdentifiers,
                              betweenCovEndo, betweenCovExo, wald)
         pathProgram.setConstraint(constraint)    
@@ -2208,6 +2362,11 @@ def MplusTwoLevel(inpfile, modellabel="MplusTwoLevel",
                 pathOutput.toSPSSdata(datasetName, datasetMeans, 
                                       datasetIntercepts, datasetVariances, datasetResidualV, estimator,
                                       datasetLabels)
+                                      
+            # Create dataset for new/additional parameters
+            if newDatasetName is not None:
+                if constraint is not None:
+                    pathOutput.newToSPSSdata(estimator, newDatasetName, datasetLabels)
 
             # Restore output
             if suppressSPSS:
@@ -2275,5 +2434,6 @@ set printback = on.
 * 2023-08-30 Set coefficient elements to -999 when undefined
 * 2024-01-03 Renamed twoLevel function so it doesn't conflict with MPA
 * 2024-05-28 Converted to Python 3
-* 2024-07-22 Corrected syntax error
-COMMENT BOOKMARK;LINE_NUM=383;ID=1.
+* 2024-11-13 Added getNewParam
+* 2024-11-13a Added withinLatentIdentifiers and betweenLatentIdentifiers 
+COMMENT BOOKMARK;LINE_NUM=400;ID=1.
