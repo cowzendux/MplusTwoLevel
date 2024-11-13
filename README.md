@@ -54,8 +54,7 @@ This and other SPSS Python Extension functions can be found at http://www.stat-h
 * "grandmean" is an optional argument that identifies a list of variables that should be grand mean centered.
 * "weight" is an optional argument that identifies a sample weight. This defaults to None, which would indicate that there all observations are given equal weight.
 * "datasetName" is an optional argument that identifies the name of an SPSS dataset that should be used to record the coefficients.
-* "datasetMeans" is an optional argument that determines whether the means are included in the coefficient dataset. This is False
-* by default.
+* "datasetMeans" is an optional argument that determines whether the means are included in the coefficient dataset. This is False by default.
 * "datasetIntercepts" is an optional argument that determines whether the model intercepts are included in the coefficient dataset. This is False by default.
 * "datasetVariances" is an optional argument that determines whether the variances are included in the coefficient dataset. This is False by default.
 * "datasetResidualV" is an optional argument that determines whether the residual variances are included in the coefficient dataset. This is False by default.
