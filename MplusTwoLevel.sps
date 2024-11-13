@@ -8,7 +8,7 @@
 * that will perform the path analysis in Mplus, then loads the important
 * parts of the Mplus output into the SPSS output window.
 
-**** Usage: MplusTwoLevel(inpfile, modellabel, runModel, viewOutput, suppressSPSS,
+**** Usage: MplusTwoLevel(modellabel, inpfile, inpShow, runModel, viewOutput, suppressSPSS,
 withinLatent, withinLatentFixed, withinLatentIdentifiers, 
 withinModel, withinMeans, withinVar, withinCovar, 
 withinCovEndo, withinCovExo, withinIdentifiers, withinMeanIdentifiers, withinSlopes,
@@ -22,12 +22,16 @@ categorical, censored, count, nominal, groupmean, grandmean,
 cluster, complex, weight, 
 datasetName, datasetMeans, datasetIntercepts, datasetVariances, 
 datasetResidualV, newDatasetName, datasetLabels, processors, waittime)
+**** "modellabel" is a string that indicates what label should be added to the output at the
+* top of your model. If this is not specified, the label defaults to "MplusTwoLevel"
 **** "inpfile" is a string identifying the directory and filename of
 * Mplus input file to be created by the program. This filename must end with
 * .inp . The data file will automatically be saved to the same directory. This
-* argument is required.
-**** "modellabel" is a string that indicates what label should be added to the output at the
-* top of your model. If this is not specified, the label defaults to "MplusTwoLevel"
+* argument defaults to "Mplus/model.inp", assuming there is an "Mplus" subdirectory
+* off of the analysis directory.
+**** "inpShow" is a boolean argument indicating whether you want the macro
+* to include a copy of the Mplus .inp file in the SPSS output. By default, the .inp
+* file is not included.
 **** "runModel" is a boolean argument indicating whether or not you want
 * the program to actually run the program it creates based on the model
 * you define. You may choose to not run the model when you 
@@ -650,7 +654,7 @@ class MplusTLprogram:
         self.variable += "Names are\n"
         for var in fullList:
             self.variable += var + "\n"
-        self.variable += ";\n\n"
+        self.variable += ";\n"
 
         # Determine usevariables
         useList = []
@@ -767,7 +771,7 @@ class MplusTLprogram:
                         for id in latentIdentifiers:
                             if equation == id[0]:
                                 curline += " (" + id[1] + ")" 
-                    code += curline + ";\n\n"                              
+                    code += curline + ";\n"                              
             
             # Regression equations
             if model is not None:
@@ -853,7 +857,7 @@ class MplusTLprogram:
                                 code += curline + "\n"
                                 curline = var
                         code += curline + ";"
-            code += "\n\n"
+            code += "\n"
             return code
 
         # List of variables involved in random slopes
@@ -903,8 +907,19 @@ class MplusTLprogram:
             for sec in sectionList:
                 if sec[-2:] != ":\n":
                     outfile.write(sec)
-                    outfile.write("\n\n")
-
+                    outfile.write("\n")
+                    
+    def inpOutput(self):
+        # Ouput .inp file to SPSS output log
+        sectionList = [self.title, self.data, self.variable, self.define,
+               self.analysis, self.model, self.constraint, self.output, self.savedata, 
+               self.plot, self.montecarlo]
+        inpText = ""
+        for sec in sectionList:
+            if sec[-2:] != ":\n":
+                inpText += sec + "\n"
+        return(inpText)
+        
 def batchfile(directory, filestem):
     # Write batch file
     with open(os.path.join(directory, filestem + ".bat"), "w") as batchFile:
@@ -993,7 +1008,7 @@ def getNewParam(outputBlock):
         return p
 
 class MplusTLoutput:
-    def __init__(self, modellabel, filename, Mplus, SPSS, slopes, complex, estimator, starts):
+    def __init__(self, modellabel, filename, inp, Mplus, SPSS, slopes, complex, estimator, starts):
         self.label = modellabel
         with open(filename, "rb") as infile:
             fileText = infile.read().decode('utf-8')
@@ -1005,6 +1020,7 @@ class MplusTLoutput:
         else:
             self.header = """                                                                   Two-Tailed 
                                    Estimate       S.E.  Est./S.E.    P-Value"""
+        self.inp = None
         self.summary = None
         self.warnings = None
         self.fit = None
@@ -1030,6 +1046,9 @@ class MplusTLoutput:
         self.wmi = None
         self.bmi = None
 
+        # Mplus .inp file
+        self.inp = inp
+        
         # Summary
         for t in range(len(outputList)):
             if "SUMMARY OF ANALYSIS" in outputList[t]:
@@ -1500,6 +1519,9 @@ class MplusTLoutput:
     # Print function
     def toSPSSoutput(self):
         spss.Submit("title '" + self.label + "'.")
+        if self.inp is not None:
+            spss.Submit("title 'MPLUS SYNTAX'.")
+            print(self.inp)
         spss.Submit("title 'SUMMARY'.")
         print(self.summary)
         spss.Submit("title 'WARNINGS'.")
@@ -1842,7 +1864,7 @@ class MplusTLoutput:
         spss.SetActive(datasetObj)
         spss.EndDataStep()
 
-def MplusTwoLevel(inpfile, modellabel="MplusTwoLevel", 
+def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow=False,
                   runModel=True, viewOutput=True, suppressSPSS=False,
                   withinLatent=None, withinLatentFixed=None, withinLatentIdentifiers=None,
                   withinModel=None, withinMeans=None, 
@@ -2345,8 +2367,11 @@ def MplusTwoLevel(inpfile, modellabel="MplusTwoLevel",
             spss.Submit(submitstring)
 
         # Parse output
+        inpText = None
+        if inpShow == True:
+            inpText = pathProgram.inpOutput()
         if viewOutput:
-            pathOutput = MplusTLoutput(modellabel, outdir + fname + ".out", 
+            pathOutput = MplusTLoutput(modellabel, outdir + fname + ".out", inpText,
                                        MplusVariables, SPSSvariables, slopeVars, complex, estimator, starts)
             pathOutput.toSPSSoutput()
 
@@ -2435,5 +2460,6 @@ set printback = on.
 * 2024-01-03 Renamed twoLevel function so it doesn't conflict with MPA
 * 2024-05-28 Converted to Python 3
 * 2024-11-13 Added getNewParam
-* 2024-11-13a Added withinLatentIdentifiers and betweenLatentIdentifiers 
-COMMENT BOOKMARK;LINE_NUM=400;ID=1.
+* 2024-11-13a Added withinLatentIdentifiers and betweenLatentIdentifiers
+* 2024-11-13b Added inpShow 
+COMMENT BOOKMARK;LINE_NUM=404;ID=1.
