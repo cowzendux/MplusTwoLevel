@@ -46,7 +46,7 @@ This and other SPSS Python Extension functions can be found at http://www.stat-h
 * "bootstrap" is an optional argument that allows you to request bootstrap confidence intervals. If you want to obtain bootstrap CIs, you set this argument equal to the number of bootstrap samples you want to use. This number should be at least 1000, but can go notably higher. Researchers typically use 5000, but it's not unheard of to use 20000 or more.  NOTE: Bootstrapping is not currently implemented for two-level models. The authors have indicated that they will be implementing it soon, but right now models with bootstrapping will not work.
 * "repse" is an optional argument that allows you to identify the resampling method used to create replicate weights. Valid options are bootstrap, jackknife, jackknife1, jackknife2, brr, and fay(#)
 * "categorical" is an optional argument that identifies a list of variables that should be treated as categorical by Mplus. Note that what Mplus calls categorical is typically called "ordinal" in other places. Use the "nominal" command described below for true categorical variables.
-* "censored" is an optional argument that identifies a list of variables that should be treated as censored by Mplus.
+* "censored" is an optional string argument that identifies the code that should be used to define censored variables in Mplus. The string should identify both the censored variables as well as which part of the distribution is censored.
 * "count" is an optional argument that identifies a list of variables that should be treated as count variables (i.e., for Poisson regression) by Mplus.
 * "nominal" is an optional argument that identifies a list of variables that should be treated as nominal variables by Mplus.
 * "cluster" is an optional argument that identifies a cluster variable. This defaults to None, which would indicate that there is no clustering.
@@ -114,7 +114,7 @@ $~~~~$[ ["IS", "Educ"], "b3"] ],
 wald = [ "b1 = 0", "b2 = 0", "b3 = 0" ],  
 useobservations = "p2cond==1",  
 categorical = ["att_ch", "yrs_tch"],  
-censored = None,  
+censored = "IS (b)",  
 count = None,  
 nominal = ["Tx"],  
 groupmean = ["CO", "CHSES", "att_ch", "yrs_tch"],  
@@ -141,7 +141,7 @@ waittime = 10)**
 * The endogenous variables  (CO, ES, and IS) are not automatically allowed to covary in the between model, although two specific covariances are allowed (CO with ES and CO with IS). 
 * Identifiers are created representing the treatment effects on the three outcomes at the between level. A Wald test is created testing whether this collect of effects is significant.
 * The analysis will only include observations where the value of pcond is 1.
-* att_ch and trs_tch are treated as a categorical variables, whereas Tx is treated as a nominal variable. 
+* att_ch and trs_tch are treated as a categorical variables, IS is treated as a bottom censored variable, and Tx is treated as a nominal variable. 
 * The four within variables will be group mean centered, while schoolsize will be grand mean centered. 
 * The analysis weights the observations using the values in the variable "demoweight." 
 * The regression coefficients will be recorded in the SPSS dataset "CLASS". This dataset will have a label variable, which will have the value of "2009 cohort" for all results from this analysis. The dataset will additionally contain estimates of the means, model intercepts, variances, and residual variances.
