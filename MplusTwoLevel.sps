@@ -253,8 +253,10 @@ datasetResidualV, newDatasetName, datasetLabels, processors, waittime)
 * that should be treated as categorical by Mplus. Note that what Mplus
 * calls categorical is typically called "ordinal" in other places. Use the
 * "nominal" command described below for true categorical variables.
-**** "censored" is an optional argument that identifies a list of variables
-* that should be treated as censored by Mplus.
+**** "censored" is an optional string argument that identifies the code that
+* should be used to define censored variables in Mplus. The string should
+* identify both the censored variables as well as which part of the distribution
+* is censored.
 **** "count" is an optional argument that identifies a list of variables
 * that should be treated as count variables 
 * (i.e., for Poisson regression) by Mplus.
@@ -346,7 +348,7 @@ betweenIdentifiers = [ [ ["CO", "Educ"], "b1"],
 wald = [ "b1 = 0", "b2 = 0", "b3 = 0" ],
 useobservations = "p2cond==1",
 categorical = ["att_ch", "yrs_tch"],
-censored = None,
+censored = "IS (b)",
 count = None,
 nominal = ["Tx"],
 groupmean = ["CO", "CHSES", "att_ch", "yrs_tch"],
@@ -384,12 +386,13 @@ waittime = 10)
 * to freely covary in the between model. The endogenous variables  (CO, ES, 
 * and IS) are not automatically allowed to covary in the between model, although 
 * two specific covariances among the outcomes are allowed (CO with ES and 
-CO with IS). The three slopes for satisfaction are all allowed to freely covary.
+* CO with IS). The three slopes for satisfaction are all allowed to freely covary.
 * Identifiers are created representing the treatment effects on the three 
 * outcomes at A Wald test is created testing whether this collect of effects is 
 * significant. The analysis will only include observations where the value of 
-* pcond is 1. att_ch and trs_tch are treated as a categorical variables, whereas 
-* Tx is treated as a nominal variable. The four within variables will be
+* pcond is 1. att_ch and trs_tch are treated as a categorical variables, IS is
+* treated as a bottom-censored variable, and  Tx is treated as a nominal variable. 
+* The four within variables will be
 * group mean centered, while schoolsize will be grand mean centered.
 * The analysis weights the observations using the values in the variable 
 * "demoweight." The regression coefficients will be recorded in the 
@@ -448,6 +451,18 @@ def MplusSplit(splitstring, linelength):
         curline = curline[splitloc:]
     returnstring += curline
     return returnstring
+
+def replaceOutsideParentheses(text, search, replace):
+    # Pattern to match text inside and outside parentheses
+    pattern = r'(\([^)]*\))|([^()]*)'
+
+    def replacement(match):
+        if match.group(1):  # Keep text inside parentheses unchanged
+            return match.group(1)
+        else:  # Apply replacement outside parentheses
+            return re.sub(search, replace, match.group(2))
+
+    return re.sub(pattern, replacement, text)
 
 def SPSSspaceSplit(splitstring, linelength):
     stringwords = splitstring.split()
@@ -695,13 +710,16 @@ class MplusTLprogram:
         if weight is not None:
             self.variable += ";\n\nweight is " + weight
 
-        vartypeList = [categorical, censored, count, nominal, withinVar, betweenVar]
-        varnameList = ["categorical", "censored", "count", "nominal", "within", "between"]
+        vartypeList = [categorical, count, nominal, withinVar, betweenVar]
+        varnameList = ["categorical", "count", "nominal", "within", "between"]
         for t in range(len(vartypeList)):
             if vartypeList[t]:
                 self.variable += ";\n\n{0} = ".format(varnameList[t])
                 for var in vartypeList[t]:
                     self.variable += var + "\n"
+
+        if censored:
+            self.variable += ";\n\ncensored "+censored+"\n"                   
         self.variable += ";\n\nMISSING ARE ALL (-999);"
 
     def setDefine(self, MplusGroupmean, MplusGrandmean):
@@ -2276,7 +2294,7 @@ def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow
                     MplusComplex = m
 
         # Convert variable list arguments to Mplus
-        lvarList = [categorical, censored, count, nominal, 
+        lvarList = [categorical, count, nominal, 
                     groupmean, grandmean, withinVar, withinMeans, betweenVar, betweenMeans]
         MplusCategorical = []
         MplusCensored = []
@@ -2288,7 +2306,7 @@ def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow
         MplusWithinMeans = []
         MplusBetweenVar = []
         MplusBetweenMeans = []
-        lvarMplusList = [MplusCategorical, MplusCensored,
+        lvarMplusList = [MplusCategorical, 
                          MplusCount, MplusNominal, MplusGroupmean, MplusGrandmean,
                          MplusWithinVar, MplusWithinMeans, MplusBetweenVar, MplusBetweenMeans]
         for t in range(len(lvarList)):
@@ -2301,6 +2319,16 @@ def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow
                     for s, m in zip(SPSSvariablesCaps, MplusVariables):
                         if lvarMplusList[t][i] == s:
                             lvarMplusList[t][i] = m
+
+        # Convert censored to Mplus
+        if censored is None:
+            MplusCensored = None
+        else:
+            # start by converting censored to upper case
+            MplusCensored =  replaceOutsideParentheses(censored, r"[a-z]", lambda m: m.group().upper())
+            # then replace SPSS variables with Mplus variables
+            for s, m in zip(SPSSvariablesCaps, MplusVariables):
+                MplusCensored = replaceOutsideParentheses(MplusCensored, s, m)
 
         # Convert weight variable to Mplus
         if weight is None:
@@ -2462,4 +2490,5 @@ set printback = on.
 * 2024-11-13 Added getNewParam
 * 2024-11-13a Added withinLatentIdentifiers and betweenLatentIdentifiers
 * 2024-11-13b Added inpShow 
-COMMENT BOOKMARK;LINE_NUM=404;ID=1.
+* 2025-02-23 Corrected censored
+COMMENT BOOKMARK;LINE_NUM=407;ID=1.
