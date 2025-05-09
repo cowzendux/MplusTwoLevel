@@ -8,7 +8,8 @@
 * that will perform the path analysis in Mplus, then loads the important
 * parts of the Mplus output into the SPSS output window.
 
-**** Usage: MplusTwoLevel(modellabel, inpfile, inpShow, runModel, viewOutput, suppressSPSS,
+**** Usage: MplusTwoLevel(modellabel, inpfile, inpShow, runModel, viewOutput, 
+MIdata, MIvars, suppressSPSS,
 withinLatent, withinLatentFixed, withinLatentIdentifiers, 
 withinModel, withinMeans, withinVar, withinCovar, 
 withinCovEndo, withinCovExo, withinIdentifiers, withinMeanIdentifiers, withinSlopes,
@@ -44,6 +45,15 @@ datasetResidualV, newDatasetName, datasetLabels, processors, waittime)
 * for Mplus to finish. If you choose not to view the output, then the program
 * will also not create a dataset for the coefficients. 
 * By default, the output is read into SPSS.
+**** "MIdata" is an optional argument indicating the name of an imputation list file 
+* that indexes the different data sets to be used through multiple imputation. This 
+* macro will not create MI data sets. However, if you previously created the MI 
+* data sets using a different program, identifying the file in this argument allows you
+* to analyze the MI data sets using this macro. 
+**** "MIvars" is a string argument providing the list of variables contained in a 
+* set of multiple imputation data set. The order of variables in the string must
+* match the order of the variables in the data set. If MIdata = None, this argument
+* does not do anything.
 **** "suppressSPSS" is a boolean argument indicating whether or not you want
 * the program to supress SPSS output while running the model. Typically this
 * output is not useful and merely clogs up the output window. If your program 
@@ -408,11 +418,14 @@ waittime = 10)
 * the output. The program will wait 10 seconds after starting to 
 * run the Mplus program before it tries to read the results back into SPSS.
 
-set printback = off.
+*set printback = off.
 begin program python3.
 import spss, spssaux, os, sys, time, re, tempfile, SpssClient
 from subprocess import Popen, PIPE
 
+def stringToCapList(text):
+    return [word.upper() for word in re.split(r'\s+', text.strip()) if word]
+    
 def _titleToPane():
     """See titleToPane(). This function does the actual job"""
     outputDoc = SpssClient.GetDesignatedOutputDoc()
@@ -662,12 +675,14 @@ class MplusTLprogram:
     def setTitle(self, titleText):
         self.title += titleText
 
-    def setData(self, filename):
+    def setData(self, filename, MIdata):
         self.data += "File is\n"
         splitName = MplusSplit(filename, 75)
         self.data += "'" + splitName + "';"
+        if MIdata != None:
+            self.data += "\nType is imputation;"
 
-    def setVariableTL(self, fullList, withinLatent, withinModel, withinVar, withinCovar,
+    def setVariableTL(self, fullList, MIdata, withinLatent, withinModel, withinVar, withinCovar,
                       slopeVars,
                       betweenLatent, betweenModel, betweenVar, betweenCovar,
                       useobservations, 
@@ -738,8 +753,11 @@ class MplusTLprogram:
                     self.variable += var + "\n"
 
         if censored:
-            self.variable += ";\n\ncensored "+censored+"\n"                   
-        self.variable += ";\n\nMISSING ARE ALL (-999);"
+            self.variable += ";\n\ncensored "+censored+"\n"
+        if MIdata == None:
+            self.variable += ";\n\nMISSING ARE ALL (-999);"
+        else:
+            self.variable += ";\n\nMISSING IS *;"
 
     def setDefine(self, MplusGroupmean, MplusGrandmean):
         if not MplusGroupmean and not MplusGrandmean:
@@ -1903,7 +1921,8 @@ class MplusTLoutput:
         spss.EndDataStep()
 
 def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow=False,
-                  runModel=True, viewOutput=True, suppressSPSS=False,
+                  runModel=True, viewOutput=True, MIdata=None, MIvars=None,
+                  suppressSPSS=False,
                   withinLatent=None, withinLatentFixed=None, withinLatentIdentifiers=None,
                   withinModel=None, withinMeans=None, 
                   withinVar=None, withinCovar=None, withinCovEndo=False, withinCovExo=True, 
@@ -1940,12 +1959,16 @@ def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow
     fname, fext = os.path.splitext(inpfile[-(t-1):])
 
     # Obtain list of variables in data set
-    SPSSvariables = []
-    SPSSvariablesCaps = []
-    for varnum in range(spss.GetVariableCount()):
-        SPSSvariables.append(spss.GetVariableName(varnum))
-        SPSSvariablesCaps.append(spss.GetVariableName(varnum).upper())
-
+    if (MIdata == None):
+        SPSSvariables = []
+        SPSSvariablesCaps = []
+        for varnum in range(spss.GetVariableCount()):
+            SPSSvariables.append(spss.GetVariableName(varnum))
+            SPSSvariablesCaps.append(spss.GetVariableName(varnum).upper())
+    else:
+        SPSSvariables = stringToCapList(MIvars)
+        SPSSvariablesCaps = SPSSvariables.copy()
+    
     # Obtain lists of latent variables
     withinLatentVars = []
     if withinLatent is not None:
@@ -1983,7 +2006,7 @@ def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow
         if estimator not in ["ML", "MLM", "MLMV", "MLR", "MLF", "MUML", "WLS", "WLSM", "WLSMV", "ULS", "ULSMV", "GLS", "BAYES"]:
             print("Error: Estimator not valid")
             error = 1
-        
+
     variableError = 0
     for var in withinLatentVars:
         if var in SPSSvariablesCaps:
@@ -2057,8 +2080,12 @@ def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow
             spss.Submit(submitstring)
 
         # Export data
-        dataname = outdir + fname + ".dat"
-        MplusVariables = exportMplus(dataname)
+        if MIdata == None:
+            dataname = outdir + fname + ".dat"
+            MplusVariables = exportMplus(dataname)
+        else:
+            dataname = MIdata
+            MplusVariables = SPSSvariablesCaps
     
         # Define within latent variables using Mplus variables
         if withinLatent is None:
@@ -2362,8 +2389,8 @@ def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow
         # Create input program
         pathProgram = MplusTLprogram()
         pathProgram.setTitle("Created by MplusPathAnalysis")
-        pathProgram.setData(dataname)
-        pathProgram.setVariableTL(MplusVariables, MplusWithinLatent, 
+        pathProgram.setData(dataname, MIdata)
+        pathProgram.setVariableTL(MplusVariables, MIdata, MplusWithinLatent, 
                                   MplusWithinModel, MplusWithinVar, MplusWithinCovar,
                                   slopeVars,
                                   MplusBetweenLatent, MplusBetweenModel, 
@@ -2518,4 +2545,6 @@ set printback = on.
 * 2025-03-17 Removed _Coefficient from saved b and beta
 * 2025-04-28 Added auxiliary
 *    Added algorithm=integration to analysis when montecarlo is not none
-COMMENT BOOKMARK;LINE_NUM=411;ID=1.
+* 2025-05-03 Added MIdata
+COMMENT BOOKMARK;LINE_NUM=421;ID=1.
+COMMENT BOOKMARK;LINE_NUM=1922;ID=2.
