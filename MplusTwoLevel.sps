@@ -19,7 +19,7 @@ betweenIdentifiers, betweenMeanIdentifiers,
 estimator, starts, useobservations, wald, constraint,
 montecarlo, bootstrap, repse,
 categorical, censored, count, nominal, groupmean, grandmean,
-cluster, complex, weight, 
+cluster, complex, weight, auxiliary,
 datasetName, datasetMeans, datasetIntercepts, datasetVariances, 
 datasetResidualV, newDatasetName, datasetLabels, processors, waittime)
 **** "modellabel" is a string that indicates what label should be added to the output at the
@@ -276,6 +276,10 @@ datasetResidualV, newDatasetName, datasetLabels, processors, waittime)
 * This defaults to None, which would indicate that there all observations
 * are given equal weight. Note that not all estimators can make use of
 * weights. MLR is typically a good option.
+**** "auxiliary" is an optional argument that identifies a list of variables
+* that are used to assist with estimating missing values but which are
+* not to be included in the model. This defaults to None, which would
+* indicate that there are no auxiliary variables in the analysis.
 **** "datasetName" is an optional argument that identifies the name of
 * an SPSS dataset that should be used to record the coefficients.
 **** "datasetMeans" is an optional argument that determines whether
@@ -663,9 +667,11 @@ class MplusTLprogram:
         splitName = MplusSplit(filename, 75)
         self.data += "'" + splitName + "';"
 
-    def setVariableTL(self, fullList, withinLatent, withinModel, withinVar, slopeVars,
-                      betweenLatent, betweenModel, betweenVar, useobservations, 
-                      categorical, censored, count, nominal, cluster, complex, weight):
+    def setVariableTL(self, fullList, withinLatent, withinModel, withinVar, withinCovar,
+                      slopeVars,
+                      betweenLatent, betweenModel, betweenVar, betweenCovar,
+                      useobservations, 
+                      categorical, censored, count, nominal, cluster, complex, weight, auxiliary):
         self.variable += "Names are\n"
         for var in fullList:
             self.variable += var + "\n"
@@ -696,6 +702,16 @@ class MplusTLprogram:
                 for var in equation:
                     if var not in useList and var not in latentName and var not in slopeVars:
                         useList.append(var)
+        if withinCovar is not None:
+            for equation in withinCovar:
+                for var in equation:
+                    if var not in useList and var not in latentName:
+                        useList.append(var)
+        if betweenCovar is not None:
+            for equation in betweenCovar:
+                for var in equation:
+                    if var not in useList and var not in latentName:
+                        useList.append(var)
         self.variable += "Usevariables are\n"
         for var in useList:
             self.variable += var + "\n"
@@ -709,7 +725,10 @@ class MplusTLprogram:
         self.variable += " " + cluster
         if weight is not None:
             self.variable += ";\n\nweight is " + weight
-
+        if auxiliary:
+            self.variable += ";\n\nauxiliary = (m)"
+            for var in auxiliary:
+                self.variable += var + "\n"
         vartypeList = [categorical, count, nominal, withinVar, betweenVar]
         varnameList = ["categorical", "count", "nominal", "within", "between"]
         for t in range(len(vartypeList)):
@@ -750,6 +769,7 @@ class MplusTLprogram:
         if starts is not None:
             self.analysis += "\nstarts = {0};".format(starts)
         if mc is not None:
+            self.analysis += "\nALGORITHM = INTEGRATION;"
             self.analysis += "\nintegration = montecarlo({0});".format(mc)
         if boot is not None:
             self.analysis += "\nbootstrap = {0};".format(boot)
@@ -1668,22 +1688,22 @@ class MplusTLoutput:
             datasetObj.varlist.append("Outcome", 50)
             datasetObj.varlist.append("Predictor", 50)
             if estimator == "BAYES":
-                datasetObj.varlist.append("b_Coefficient", 0)
+                datasetObj.varlist.append("b", 0)
                 datasetObj.varlist.append("b_PostSD", 0)
                 datasetObj.varlist.append("b_p", 0)
                 datasetObj.varlist.append("b_lower", 0)
                 datasetObj.varlist.append("b_upper", 0)
-                datasetObj.varlist.append("beta_Coefficient", 0)
+                datasetObj.varlist.append("beta", 0)
                 datasetObj.varlist.append("beta_PostSD", 0)
                 datasetObj.varlist.append("beta_p", 0)
                 datasetObj.varlist.append("beta_lower", 0)
                 datasetObj.varlist.append("beta_upper", 0)                
             else:
-                datasetObj.varlist.append("b_Coefficient", 0)
+                datasetObj.varlist.append("b", 0)
                 datasetObj.varlist.append("b_SE", 0)
                 datasetObj.varlist.append("b_Ratio", 0)
                 datasetObj.varlist.append("b_p", 0)
-                datasetObj.varlist.append("beta_Coefficient", 0)
+                datasetObj.varlist.append("beta", 0)
                 datasetObj.varlist.append("beta_SE", 0)
                 datasetObj.varlist.append("beta_Ratio", 0)
                 datasetObj.varlist.append("beta_p", 0)
@@ -1707,9 +1727,9 @@ class MplusTLoutput:
 
         # Set variables to f8.3
         if estimator == "BAYES":
-            submitstring = "alter type b_Coefficient to beta_upper (f8.3)."
+            submitstring = "alter type b to beta_upper (f8.3)."
         else:
-            submitstring = "alter type b_Coefficient to beta_p (f8.3)."
+            submitstring = "alter type b to beta_p (f8.3)."
         spss.Submit(submitstring)
 
         # Get coefficients
@@ -1898,7 +1918,7 @@ def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow
                   montecarlo=None, bootstrap=None, repse=None,
                   categorical=None, censored=None, count=None, nominal=None,
                   groupmean=None, grandmean=None,
-                  cluster=None, complex=None, weight=None, 
+                  cluster=None, complex=None, weight=None, auxiliary=None,
                   datasetName=None, datasetMeans=False, datasetIntercepts=False, 
                   datasetVariances=False, datasetResidualV=False, newDatasetName=None,
                   datasetLabels=[], miThreshold=10, processors=None, waittime=5):
@@ -2294,12 +2314,13 @@ def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow
                     MplusComplex = m
 
         # Convert variable list arguments to Mplus
-        lvarList = [categorical, count, nominal, 
+        lvarList = [categorical, count, nominal, auxiliary,
                     groupmean, grandmean, withinVar, withinMeans, betweenVar, betweenMeans]
         MplusCategorical = []
         MplusCensored = []
         MplusCount = []
         MplusNominal = []
+        MplusAuxiliary = []
         MplusGroupmean = []
         MplusGrandmean = []
         MplusWithinVar = []
@@ -2307,7 +2328,7 @@ def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow
         MplusBetweenVar = []
         MplusBetweenMeans = []
         lvarMplusList = [MplusCategorical, 
-                         MplusCount, MplusNominal, MplusGroupmean, MplusGrandmean,
+                         MplusCount, MplusNominal, MplusAuxiliary, MplusGroupmean, MplusGrandmean,
                          MplusWithinVar, MplusWithinMeans, MplusBetweenVar, MplusBetweenMeans]
         for t in range(len(lvarList)):
             if lvarList[t] is None:
@@ -2343,10 +2364,13 @@ def MplusTwoLevel(modellabel="MplusTwoLevel", inpfile="Mplus/model.inp", inpShow
         pathProgram.setTitle("Created by MplusPathAnalysis")
         pathProgram.setData(dataname)
         pathProgram.setVariableTL(MplusVariables, MplusWithinLatent, 
-                                  MplusWithinModel, MplusWithinVar, slopeVars,
+                                  MplusWithinModel, MplusWithinVar, MplusWithinCovar,
+                                  slopeVars,
                                   MplusBetweenLatent, MplusBetweenModel, 
-                                  MplusBetweenVar, MplusUseobservations, MplusCategorical, MplusCensored, 
-                                  MplusCount, MplusNominal, MplusCluster, MplusComplex, MplusWeight)
+                                  MplusBetweenVar, MplusBetweenCovar,
+                                  MplusUseobservations, MplusCategorical, MplusCensored, 
+                                  MplusCount, MplusNominal, MplusCluster, MplusComplex, MplusWeight,
+                                  MplusAuxiliary)
         pathProgram.setDefine(MplusGroupmean, MplusGrandmean)
         pathProgram.setAnalysis(MplusCluster, MplusComplex, MplusWithinSlopes, estimator,
                                 starts, MplusWeight, montecarlo, bootstrap, repse, processors)
@@ -2491,4 +2515,7 @@ set printback = on.
 * 2024-11-13a Added withinLatentIdentifiers and betweenLatentIdentifiers
 * 2024-11-13b Added inpShow 
 * 2025-02-23 Corrected censored
-COMMENT BOOKMARK;LINE_NUM=407;ID=1.
+* 2025-03-17 Removed _Coefficient from saved b and beta
+* 2025-04-28 Added auxiliary
+*    Added algorithm=integration to analysis when montecarlo is not none
+COMMENT BOOKMARK;LINE_NUM=411;ID=1.
